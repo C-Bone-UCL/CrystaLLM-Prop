@@ -30,7 +30,7 @@ class SampleDefaults:
     dtype: str = "bfloat16"  # 'float32' or 'bfloat16' or 'float16'
     compile: bool = False  # use PyTorch 2.0 to compile the model to be faster
     target: str = "console"  # where the generated content will be sent; can also be 'file'
-
+    generated_dir: str = "generated_cifs"
 
 if __name__ == "__main__":
     C = parse_config(SampleDefaults)
@@ -86,7 +86,8 @@ if __name__ == "__main__":
                     print(generated)
                     print('---------------')
                 elif C.target == "file":
-                    fname = f"sample_{k+1}.cif"
+                    os.makedirs(C.generated_dir, exist_ok=True)
+                    fname = os.path.join(C.generated_dir, f"sample_{k+1}.cif")
                     print(f"writing generated content to {fname} ...")
                     with open(fname, "wt") as f:
                         f.write(generated)
