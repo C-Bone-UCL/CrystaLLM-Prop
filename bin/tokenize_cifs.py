@@ -35,15 +35,30 @@ def tokenize(chunk_of_cifs, queue=None):
         tokenized.append(tokenizer.tokenize_cif(cif))
     return tokenized
 
+# def preprocess(cifs_raw):
+#     cifs = []
+#     for _, cif in tqdm(cifs_raw, desc="preparing files..."):
+#         # filter out some lines in the CIF
+#         lines = cif.split('\n')
+#         cif_lines = []
+#         for line in lines:
+#             line = line.strip()
+#             if len(line) > 0 and not line.startswith("#") and "pymatgen" not in line:
+#                 cif_lines.append(line)
+#         cif_lines.append("\n")
+#         cifs.append("\n".join(cif_lines))
+#     return cifs
 
 def preprocess(cifs_raw):
     cifs = []
     for _, cif in tqdm(cifs_raw, desc="preparing files..."):
-        # filter out some lines in the CIF
+        # Split the CIF content into lines
         lines = cif.split('\n')
         cif_lines = []
         for line in lines:
             line = line.strip()
+            # Keep the bandgap line, and only exclude the pymatgen and comment lines
+            # MAKE SURE THE LINE STARTING WITH "_Bandgap_eV:" IS NOT REMOVED
             if len(line) > 0 and not line.startswith("#") and "pymatgen" not in line:
                 cif_lines.append(line)
         cif_lines.append("\n")

@@ -42,7 +42,8 @@ KEYWORDS = [
     "_cell_angle_alpha",
     "_cell_formula_units_Z",
     "loop_",
-    "data_"
+    "data_",
+    "Bandgap_eV:"
 ]
 
 EXTENDED_KEYWORDS = [
@@ -121,12 +122,38 @@ class CIFTokenizer:
         # decoder: take a list of integers (i.e. encoded tokens), output a string
         return ''.join([self._id_to_token[i] for i in ids])
 
+    # def tokenize_cif(self, cif_string, single_spaces=True):
+    #     # Preprocessing step to replace '_symmetry_space_group_name_H-M Pm'
+    #     #  with '_symmetry_space_group_name_H-M Pm_sg',to disambiguate from atom 'Pm',
+    #     #  or any space group symbol to avoid problematic cases, like 'P1'
+    #     spacegroups = "|".join(SPACE_GROUPS)
+    #     cif_string = re.sub(fr'(_symmetry_space_group_name_H-M *\b({spacegroups}))\n', r'\1_sg\n', cif_string)
+
+    #     # Create a regex pattern by joining the escaped tokens with '|'
+    #     token_pattern = '|'.join(self._escaped_tokens)
+
+    #     # Add a regex pattern to match any sequence of characters separated by whitespace or punctuation
+    #     full_pattern = f'({token_pattern}|\\w+|[\\.,;!?])'
+
+    #     # Tokenize the input string using the regex pattern
+    #     if single_spaces:
+    #         cif_string = re.sub(r'[ \t]+', ' ', cif_string)
+    #     tokens = re.findall(full_pattern, cif_string)
+
+    #     # Replace unrecognized tokens with the unknown_token
+    #     tokens = [token if token in self._tokens else UNK_TOKEN for token in tokens]
+
+    #     return tokens
+    
     def tokenize_cif(self, cif_string, single_spaces=True):
         # Preprocessing step to replace '_symmetry_space_group_name_H-M Pm'
         #  with '_symmetry_space_group_name_H-M Pm_sg',to disambiguate from atom 'Pm',
         #  or any space group symbol to avoid problematic cases, like 'P1'
         spacegroups = "|".join(SPACE_GROUPS)
         cif_string = re.sub(fr'(_symmetry_space_group_name_H-M *\b({spacegroups}))\n', r'\1_sg\n', cif_string)
+
+        # Handle bandgap tokenization
+        cif_string = re.sub(r'(Bandgap_eV: *\d+\.\d+)', r'\1', cif_string)
 
         # Create a regex pattern by joining the escaped tokens with '|'
         token_pattern = '|'.join(self._escaped_tokens)
