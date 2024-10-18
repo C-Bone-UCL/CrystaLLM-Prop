@@ -68,7 +68,7 @@ def augment_cif(progress_queue, task_queue, result_queue, oxi, decimal_places):
 
             # After processing, append the bandgap back if it existed
             if bandgap is not None:
-                cif_main += f"Bandgap_eV: {bandgap:.2f}\n"
+                cif_main += f"Bandgap_eV: {bandgap:.2f}\n\n"
 
             # Add the processed CIF (with bandgap re-added) to the list
             augmented_cifs.append((id, cif_main))

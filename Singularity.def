@@ -1,0 +1,37 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+
+%files
+    /home/uccacbo/CrystaLLM /opt
+
+%post
+    # Install dependencies
+    . /opt/conda/etc/profile.d/conda.sh
+
+    # Create and activate the environment
+    conda create -n crystallm_env python=3.10 -y
+    conda deactivate
+    conda activate crystallm_env
+
+    # Install PyTorch with CUDA support
+    pip3 install torch==2.0.1+cu118 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+    cd /opt/CrystaLLM/
+
+    # Install Python project dependencies from requirements.txt
+    pip install -r requirements.txt
+
+    # Install your package in editable mode
+    pip install -e .
+
+%environment
+    export LC_ALL=C
+    export LANG=C
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate crystallm_env
+
+%runscript
+    # Set the working directory automatically
+    cd /opt/CrystaLLM
+    exec "$@"
+

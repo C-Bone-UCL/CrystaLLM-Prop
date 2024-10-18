@@ -1,0 +1,728 @@
+data_Na2Cl2
+loop_
+_atom_type_symbol
+_atom_type_electronegativity
+_atom_type_radius
+_atom_type_ionic_radius
+Na 0.9300 1.8000 1.1600
+Cl 3.1600 1.0000 0.7800
+_symmetry_space_group_name_H-M P4/nmm
+_cell_angle_gamma 00000000
+_cell_length_b 000.000.00000
+_cell_angle_gamma 2 'x, 1.00
+loop_
+loop_
+_cell_angle_beta 0 0000000 000.00000 0
+_symmetry_Int_Tables_number 1.50000 1000000.0 00
+_symmetry_Int_Tables_number 30
+_chemical_formula_sum 00000
+_chemical_formula_sum 1.0
+_cell_angle_gamma 1.00000 000
+_symmetry_space_group_name_H-M 000 0
+loop_
+loop_
+_chemical_formula_structural 00.0.00
+_cell_length_c y, 0.00.000000
+_symmetry_Int_Tables_number '
+_symmetry_space_group_name_H-M 0000
+_chemical_formula_sum 000.0.0.0.0
+_cell_length_c 20.0
+loop_
+loop_
+_chemical_formula_structural 1.00
+loop_
+loop_
+_cell_angle_gamma zz'
+_chemical_formula_sum 0.0000
+_atom_type_ionic_radius
+_cell_length_b '
+_symmetry_space_group_name_H-M 00 1.00
+_chemical_formula_sum 000000
+_chemical_formula_structural 1.00
+_symmetry_Int_Tables_number 0
+_symmetry_Int_Tables_number 0 000.1.0
+_atom_site_symmetry_multiplicity
+loop_
+_symmetry_space_group_name_H-M 800000.0 0
+_chemical_formula_structural 000 1
+loop_
+loop_
+_cell_length_b 0
+loop_
+loop_
+_cell_angle_beta 00 0
+_cell_length_a 0.0.0000 00000.0.0
+loop_
+loop_
+_symmetry_equiv_pos_as_xyz
+_symmetry_space_group_name_H-M 00
+_cell_length_a 00 0 0 0.0.0
+loop_
+_atom_site_occupancy
+_chemical_formula_structural 00000.0.60000
+_chemical_formula_structural 1500.0
+_atom_site_label
+_symmetry_Int_Tables_number 00.000 000 0.0000000
+loop_
+_cell_angle_beta 0.00
+_cell_angle_beta 80.000
+_cell_length_b 400 0.0.650
+_symmetry_Int_Tables_number 00 00.000.00
+_cell_length_c 00.00.0.0
+_atom_site_symmetry_multiplicity
+_chemical_formula_structural O 0.90000
+loop_
+loop_
+_symmetry_Int_Tables_number 00.00.000
+_chemical_formula_structural 000.80
+_chemical_formula_structural 000.0000 1.00
+_cell_length_a 1.0.200
+_cell_length_b 0
+_cell_angle_beta 110
+_cell_angle_gamma 00 000.90.66 0
+_cell_length_a 0 0
+_symmetry_Int_Tables_number 0
+loop_
+_chemical_formula_structural 10
+loop_
+_chemical_formula_sum 00 0000.224 00.000 000.5000 1.00.0.000000000
+_cell_length_c 10
+_cell_length_c 1.01.000
+_chemical_formula_structural 0
+_cell_length_a 1.2 00
+loop_
+_symmetry_Int_Tables_number 00
+_cell_length_a 1.0 0
+_symmetry_Int_Tables_number 0.000 0
+_cell_length_c 1450.2 2
+loop_
+loop_
+_cell_angle_gamma 0.000
+_symmetry_Int_Tables_number 00.2500000.0.1 0.6
+_cell_length_a 0 1 190.1.0000
+loop_
+_symmetry_space_group_name_H-M 000
+_chemical_formula_sum 000 00.0 '
+_atom_site_fract_z
+loop_
+loop_
+_chemical_formula_sum 11.0 0.20000
+_chemical_formula_structural 0.1.000.0000
+_chemical_formula_sum 00.0 'x, 0 000.00.0 00.04 0.000.00.00.0
+loop_
+loop_
+loop_
+loop_
+_chemical_formula_sum 000
+loop_
+_cell_length_a 00
+_chemical_formula_structural 000.0
+_symmetry_Int_Tables_number 1.0
+_atom_site_fract_y
+loop_
+_chemical_formula_structural '
+loop_
+_cell_angle_gamma 0
+_atom_site_occupancy
+_cell_angle_gamma 1.0.080 1.00
+_atom_site_label
+_cell_length_b 0
+_symmetry_space_group_name_H-M 0000000
+_cell_length_a 0.0.00.4 000
+loop_
+loop_
+loop_
+_symmetry_Int_Tables_number 1.0000
+loop_
+_cell_length_b 0.000 00.000
+_cell_angle_gamma 000
+_symmetry_space_group_name_H-M 0.00.690.00.200.0
+_atom_site_symmetry_multiplicity
+_symmetry_Int_Tables_number 0.00000
+_chemical_formula_structural 1.000000 1.8 000.00
+_cell_angle_beta 0 0.040
+_cell_angle_beta 0
+_cell_length_a 000
+_cell_length_a 000.8 00.00.2850 'x, 0000.9000000
+_chemical_formula_structural 0.8
+loop_
+_cell_angle_beta 9000 000000000.0000000082 00000.0.6000
+loop_
+_symmetry_Int_Tables_number 00.1.80
+loop_
+_symmetry_space_group_name_H-M 1.0
+_chemical_formula_structural 00000
+loop_
+_chemical_formula_sum 0.00
+loop_
+_cell_angle_beta 0.00
+_cell_angle_gamma 1 0 0000.0
+_chemical_formula_structural 000.90000.0.0
+_cell_length_c 1.0
+_cell_length_a 00
+_cell_angle_beta 000 2
+_chemical_formula_structural 0
+_cell_length_b 000
+_symmetry_Int_Tables_number 0
+loop_
+_chemical_formula_sum 000
+_chemical_formula_structural 100
+loop_
+_cell_angle_beta 000
+loop_
+_symmetry_Int_Tables_number 1.000.000
+loop_
+_symmetry_Int_Tables_number 0 0 1.2 11.1.50.00.000 z'
+_cell_angle_beta 00040
+_chemical_formula_sum 0
+_chemical_formula_structural 1.0.000
+_symmetry_space_group_name_H-M 00
+_chemical_formula_sum 0
+_cell_angle_gamma 000000 0.0000
+_symmetry_Int_Tables_number 1
+_symmetry_Int_Tables_number 0
+loop_
+_symmetry_space_group_name_H-M '
+loop_
+loop_
+_atom_site_symmetry_multiplicity
+_chemical_formula_sum 00.2
+loop_
+_chemical_formula_structural '
+_chemical_formula_sum 8 1.004000.00
+_symmetry_Int_Tables_number 1.00.0
+_symmetry_Int_Tables_number 100
+_chemical_formula_structural 10000
+_atom_site_symmetry_multiplicity
+loop_
+_chemical_formula_sum 900.0 00 00
+_cell_angle_beta 00 0000
+loop_
+_cell_length_a 1 0
+_atom_site_symmetry_multiplicity
+_cell_length_a 200
+loop_
+_chemical_formula_structural 49000
+_chemical_formula_sum 000.0.0.0
+_cell_length_b 000
+_cell_length_b '
+_cell_length_b 00 000
+_atom_site_symmetry_multiplicity
+_symmetry_space_group_name_H-M 0
+_cell_volume 16 0
+loop_
+loop_
+_cell_angle_gamma 1.0.0000
+_cell_angle_beta 0 0.8
+_chemical_formula_structural 0.00.0
+_chemical_formula_structural '
+_cell_angle_gamma 00.00.0.0.00000.0 0.00.00
+loop_
+_symmetry_Int_Tables_number.61000.00000.00000.000000
+_chemical_formula_structural 0.00
+_cell_angle_gamma 00 00.0
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_label
+_chemical_formula_structural 0000
+_cell_angle_gamma 00.0
+loop_
+_cell_angle_gamma 0.2.0 '
+loop_
+_cell_length_a 00
+_chemical_formula_sum 0
+_symmetry_Int_Tables_number 00.00.00000.000.00000.0
+loop_
+loop_
+_atom_site_symmetry_multiplicity
+loop_
+_cell_length_b 1.590 000
+_chemical_formula_sum 0
+_symmetry_Int_Tables_number y, 0
+_symmetry_Int_Tables_number 0000
+_chemical_formula_structural 00 1.0090 10.000.0 000
+_symmetry_Int_Tables_number 00
+_cell_angle_beta 0
+loop_
+_cell_length_a 0
+_symmetry_Int_Tables_number 0
+_chemical_formula_sum ''
+_cell_length_a 1.000
+loop_
+_atom_site_fract_y
+loop_
+_cell_angle_gamma 0000.10
+_chemical_formula_structural 0.00.000
+_atom_site_fract_x
+_atom_site_fract_y
+_chemical_formula_sum 0000000
+_atom_site_fract_y
+_cell_angle_beta 0
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+_chemical_formula_structural 000
+_chemical_formula_structural 0 0000
+_cell_length_a 000000
+_atom_site_symmetry_multiplicity
+_chemical_formula_structural 000000.0
+_atom_site_fract_y
+_chemical_formula_structural 00 00000000 1.00
+loop_
+_chemical_formula_structural 000
+_cell_angle_beta 1.0000.0
+_chemical_formula_structural 1 2 00.20
+_atom_site_fract_y
+_atom_site_fract_x
+loop_
+_chemical_formula_sum 000
+loop_
+loop_
+_cell_angle_gamma 1
+_cell_angle_beta 0
+_atom_site_fract_y
+_atom_site_fract_y
+_chemical_formula_sum 800
+loop_
+_symmetry_Int_Tables_number 1.0
+_cell_angle_beta '
+loop_
+_atom_site_fract_y
+_chemical_formula_sum 90
+_symmetry_Int_Tables_number 000
+_atom_site_fract_y
+loop_
+_cell_angle_gamma 0.0.0000.4500.0
+loop_
+loop_
+loop_
+_cell_angle_gamma 000.4
+_symmetry_Int_Tables_number 0.0
+_chemical_formula_structural 0.90000
+_atom_site_fract_y
+_atom_site_fract_z
+_chemical_formula_structural 190
+loop_
+loop_
+_atom_site_label
+_atom_site_label
+_chemical_formula_sum 0 Li350 0 000.0
+_atom_site_label
+_atom_site_occupancy
+loop_
+_atom_site_fract_z
+_atom_site_symmetry_multiplicity
+_atom_site_fract_y
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+loop_
+_atom_site_fract_z
+_atom_site_label
+_atom_site_symmetry_multiplicity
+loop_
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_type_symbol
+_chemical_formula_structural 00
+loop_
+loop_
+_atom_site_occupancy
+loop_
+loop_
+_atom_site_fract_z
+_atom_site_type_symbol
+loop_
+_atom_site_symmetry_multiplicity
+_atom_site_type_symbol
+loop_
+_atom_site_fract_z
+_atom_site_fract_x
+loop_
+_atom_site_type_symbol
+loop_
+_chemical_formula_sum 0000
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_type_symbol
+_atom_site_fract_z
+loop_
+_atom_site_fract_z
+loop_
+_atom_site_occupancy
+loop_
+_atom_site_label
+_chemical_formula_structural 00 00000
+loop_
+loop_
+loop_
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+_atom_site_occupancy
+loop_
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_fract_x
+_chemical_formula_sum 00.0001.1.000
+_atom_site_label
+_atom_site_label
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+_atom_site_fract_z
+loop_
+_atom_site_fract_x
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_z
+loop_
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+loop_
+_atom_site_label
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_occupancy
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_label
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_label
+loop_
+_atom_site_type_symbol
+_atom_site_symmetry_multiplicity
+loop_
+_atom_site_label
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_y
+loop_
+loop_
+loop_
+loop_
+_atom_site_fract_z
+_chemical_formula_structural 0.00.000
+loop_
+_atom_site_fract_z
+_atom_site_fract_x
+_symmetry_equiv_pos_as_xyz
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_type_symbol
+loop_
+_symmetry_equiv_pos_as_xyz
+_atom_site_fract_y
+_atom_site_type_symbol
+_atom_site_fract_z
+_atom_site_fract_z
+_symmetry_equiv_pos_as_xyz
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_label
+_atom_site_fract_z
+loop_
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_y
+loop_
+_atom_site_label
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_occupancy
+_atom_site_fract_y
+loop_
+loop_
+loop_
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_label
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_symmetry_multiplicity
+_atom_site_label
+_atom_site_fract_y
+_atom_site_type_symbol
+loop_
+_atom_site_label
+_atom_site_fract_z
+loop_
+_atom_site_type_symbol
+_atom_site_occupancy
+_atom_site_occupancy
+loop_
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_label
+_atom_site_fract_y
+loop_
+_symmetry_equiv_pos_as_xyz
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_fract_x
+loop_
+_atom_site_fract_y
+_atom_site_fract_y
+loop_
+_symmetry_equiv_pos_as_xyz
+_atom_site_symmetry_multiplicity
+_atom_site_fract_y
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_fract_x
+_atom_site_occupancy
+loop_
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_occupancy
+_atom_site_label
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_type_symbol
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_symmetry_multiplicity
+loop_
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+loop_
+_atom_site_fract_y
+loop_
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_fract_y
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_type_symbol
+_atom_site_occupancy
+loop_
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_y
+loop_
+_atom_site_fract_y
+_atom_site_fract_y
+loop_
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_type_ionic_radius
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_type_symbol
+_atom_site_fract_z
+_atom_site_type_symbol
+_atom_site_label
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_label
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_type_symbol
+_atom_site_fract_y
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_fract_z
+loop_
+_atom_site_fract_z
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_fract_x
+loop_
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_label
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_type_ionic_radius
+_atom_site_label
+_atom_site_symmetry_multiplicity
+_atom_type_ionic_radius
+_atom_site_label
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_fract_x
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_label
+_atom_site_fract_y
+_atom_site_label
+_atom_site_occupancy
+_atom_site_type_symbol
+_atom_site_fract_y
+_symmetry_equiv_pos_as_xyz
+loop_
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_occupancy
+_symmetry_equiv_pos_as_xyz
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+loop_
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_fract_y
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_fract_x
+_atom_site_fract_z
+_atom_site_fract_x
+Ga1.00.000
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_fract_z
+_symmetry_equiv_pos_as_xyz
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_symmetry_multiplicity
+loop_
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_type_symbol
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_fract_x
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+_symmetry_equiv_pos_as_xyz
+_atom_site_occupancy
+_atom_site_label
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_fract_z
+_atom_site_fract_y
+_atom_site_occupancy
+_atom_site_symmetry_multiplicity
+_atom_site_symmetry_multiplicity
+_atom_site_occupancy
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_fract_y
+_atom_site_symmetry_multiplicity
+Ga40005090 0 000000

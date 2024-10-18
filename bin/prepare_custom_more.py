@@ -33,7 +33,7 @@ def process_cif_files(input_dir, output_tar_gz):
 
                     # Re-append the bandgap information to the generated CIF content
                     if bandgap is not None:
-                        cif_content += f"_Bandgap_eV: {bandgap:.2f}\n"
+                        cif_content += f"_Bandgap_eV: {bandgap:.2f}\n\n"
 
                     # Create the tar entry for the CIF file
                     cif_file = tarfile.TarInfo(name=file)

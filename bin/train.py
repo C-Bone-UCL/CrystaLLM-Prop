@@ -24,6 +24,7 @@ from crystallm import (
 @dataclass
 class TrainDefaults:
     out_dir: str = "out"  # the path to the folder where the model checkpoints will be stored
+    ckpt_out_dir: str = "out"  # the path to the folder where the model checkpoints will be stored (CB: added this)
     eval_interval: int = 250  # how often to evaluate against the validation set
     log_interval: int = 1  # how often to print to
     eval_iters_train: int = 200
@@ -66,6 +67,8 @@ class TrainDefaults:
     underrep_p: float = 0.0
     validate: bool = False  # whether to evaluate the model using the validation set
 
+    # finetune argument (CB: added this)
+    finetune_head: bool = False  # if True, finetune the model on the dataset (CB: added this)
 
 def read_start_indices(
     max_start_index: int,
@@ -175,6 +178,7 @@ if __name__ == "__main__":
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
     elif C.init_from == "resume":
+        # if the model is loaded from a checkpoint, finetune head only if specified
         print(f"Resuming training from {C.out_dir}...")
         ckpt_path = os.path.join(C.out_dir, "ckpt.pt")
         checkpoint = torch.load(ckpt_path, map_location=C.device)
@@ -194,6 +198,10 @@ if __name__ == "__main__":
         model.load_state_dict(state_dict)
         iter_num = checkpoint["iter_num"]
         best_val_loss = checkpoint["best_val_loss"]
+    
+    # Resize the token embeddings if the vocab size has changed (CB: added this)
+    if model.config.vocab_size != model.config.new_vocab_size:
+        model.resize_token_embeddings(model.config.new_vocab_size)
 
     # crop down the model block size if desired, using model surgery
     if C.block_size < model.config.block_size:
@@ -204,9 +212,24 @@ if __name__ == "__main__":
     # initialize a GradScaler; if enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(C.dtype == "float16"))
 
+    # handle the finetuning of the model head (CB: added this)
+    if C.finetune_head:
+        print("Finetuning head only: Freezing transformer layers")
+        for param in model.transformer.parameters():
+            param.requires_grad = False
+        for param in model.lm_head.parameters():
+            param.requires_grad = True
+
+    # optimizer
     optimizer = model.configure_optimizers(C.weight_decay, C.learning_rate, (C.beta1, C.beta2))
+
     if C.init_from == "resume":
         optimizer.load_state_dict(checkpoint["optimizer"])
+        # Set up the optimizer such that only the trainable parameters are updated (CB: added this)
+        for group in optimizer.param_groups:
+            for param in group["params"]:
+                if not param.requires_grad:
+                    assert param.grad is None
 
     if C.compile:
         print("Compiling the model (takes a ~minute)...")
@@ -271,8 +294,12 @@ if __name__ == "__main__":
                         "best_val_loss": best_val_loss,
                         "config": dict(C),
                     }
-                    print(f"saving checkpoint to {C.out_dir}...")
-                    torch.save(checkpoint, os.path.join(C.out_dir, "ckpt.pt"))
+                    # save the checkpoint (CB: added this to handle ckpt out paths)
+                    checkpoint_path = os.path.join(C.ckpt_out_dir, "ckpt.pt") if C.ckpt_out_dir else os.path.join(C.out_dir, "ckpt.pt")
+                    #make sure the directory exists
+                    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+                    print(f"saving checkpoint to {checkpoint_path}...")
+                    torch.save(checkpoint, checkpoint_path)
         if iter_num == 0 and C.eval_only:
             break
 

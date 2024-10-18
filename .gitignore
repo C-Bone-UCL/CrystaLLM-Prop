@@ -174,3 +174,6 @@ cuda-repo-wsl-ubuntu-11-8-local_11.8.0-1_amd64.deb
 BG_CIFs/
 BG_cifs_more_tokens/
 BG_cifs_process_steps/
+crystallm_container.sif
+small_model_untouched/
+cron_jobs/

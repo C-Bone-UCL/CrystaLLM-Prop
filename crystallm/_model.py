@@ -16,7 +16,8 @@ from crystallm import CIFTokenizer
 @dataclass
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 371
+    vocab_size: int = 371  # number of tokens in the vocabulary (CB: updated to 372)
+    new_vocab_size: int = 372  # number of tokens in the new vocabulary (CB: added this)
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
@@ -190,6 +191,35 @@ class GPT(nn.Module):
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def resize_token_embeddings(self, new_vocab_size: int): # CB: added this
+        """
+        Resizes the token embeddings matrix of the model. If the new vocabulary size is
+        greater than the current vocabulary size, the token embeddings matrix is resized
+        and the new tokens are randomly initialized. If the new vocabulary size is less
+        than the current vocabulary size, the tokens are removed from the vocabulary and
+        the corresponding rows of the token embeddings matrix are removed.
+
+        :param new_vocab_size: the new vocabulary size
+        """
+        if new_vocab_size == self.config.vocab_size:
+            return
+        if new_vocab_size < self.config.vocab_size:
+            self.lm_head = nn.Linear(self.config.n_embd, new_vocab_size, bias=False)
+            self.transformer.wte = nn.Embedding(new_vocab_size, self.config.n_embd)
+            self.transformer.wte.weight = self.lm_head.weight
+            self.config.vocab_size = new_vocab_size
+        else:
+            old_vocab_size = self.config.vocab_size
+            self.config.vocab_size = new_vocab_size
+            old_wte = self.transformer.wte.weight.data
+            self.transformer.wte = nn.Embedding(new_vocab_size, self.config.n_embd)
+            self.transformer.wte.weight.data[:old_vocab_size, :] = old_wte
+            new_tokens = new_vocab_size - old_vocab_size
+            if new_tokens > 0:
+                torch.nn.init.normal_(self.transformer.wte.weight.data[old_vocab_size:, :], mean=0.0, std=0.02)
+            self.lm_head = nn.Linear(self.config.n_embd, new_vocab_size, bias=False)
+            self.lm_head.weight = self.transformer.wte.weight
 
     def forward(self, idx, targets=None):
         device = idx.device

@@ -1,0 +1,9 @@
+data_Na2Cl2
+loop_
+_atom_type_symbol
+_atom_type_electronegativity
+_atom_type_radius
+_atom_type_ionic_radius
+Na  0.9300  1.8000  1.1600
+Cl  3.1600  1.0000  0.7800
+_symmetry_space_group_name_H-M P4/nmm
