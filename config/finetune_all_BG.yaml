@@ -1,30 +1,30 @@
 out_dir: "large_model_untouched" # path to model ckpt to train on
-eval_interval: 50  # how often to evaluate against the validation set
-eval_iters_train: 50
-eval_iters_val: 50
+eval_interval: 100  # how often to evaluate against the validation set
+eval_iters_train: 100
+eval_iters_val: 100
 log_interval: 50  # how often to print to the console (1 = every iteration)
 init_from: "resume"
 
 # whether to always save a checkpoint
 always_save_checkpoint: True
 validate: True
-ckpt_out_dir: "finetuned_models/BG_head"  # the path to the directory to save the checkpoints
+ckpt_out_dir: "finetuned_models/BG_all"  # the path to the directory to save the checkpoints
 
 dataset: "BG_large_tokens"
 gradient_accumulation_steps: 4
-batch_size: 8
-block_size: 2048  # context of up to `block_size` previous characters
+batch_size: 4
+block_size: 1024  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 14
-n_head: 14
+n_layer: 12
+n_head: 12
 n_embd: 1024
 dropout: 0.1
 
 #wandb
 wandb_log: True # disabled by default
 wandb_project: 'crystallm_CIF_BG'
-wandb_run_name: 'BG_large_head'
+wandb_run_name: 'BG_large_all'
 
 learning_rate: 1e-3
 decay_lr: True
@@ -35,7 +35,7 @@ beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
 warmup_iters: 100  # not super necessary potentially
 
-finetune_method : "freeze_head"
+finetune_method : "finetune_all"
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only

@@ -20,7 +20,6 @@ from crystallm import (
     GPTConfig,
 )
 
-
 @dataclass
 class TrainDefaults:
     out_dir: str = "out"  # the path to the folder where the model checkpoints will be stored
@@ -32,6 +31,11 @@ class TrainDefaults:
     eval_only: bool = False  # if True, script exits right after the first eval
     always_save_checkpoint: bool = False  # if True, always save a checkpoint after each eval
     init_from: str = "scratch"  # 'scratch' or 'resume'
+
+    # wandb logging
+    wandb_log: bool = False # disabled by default
+    wandb_project:str = 'crystallm_CIF_BG'
+    wandb_run_name:str = 'BG_large'
 
     # data
     dataset: str = ""  # the path to the folder containing the .bin files with encoded tokens
@@ -68,7 +72,7 @@ class TrainDefaults:
     validate: bool = False  # whether to evaluate the model using the validation set
 
     # finetune argument (CB: added this)
-    finetune_head: bool = False  # if True, finetune the model on the dataset (CB: added this)
+    finetune_method: str = 'finetune_all'  # finetune the model on the dataset (CB: added this) (ex: 'freeze_head', 'finetune_all', 'LoRA')
 
 def read_start_indices(
     max_start_index: int,
@@ -176,32 +180,43 @@ if __name__ == "__main__":
             print("Defaulting to vocab_size of 371...")
         model_args["vocab_size"] = meta_vocab_size if meta_vocab_size is not None else 371
         gptconf = GPTConfig(**model_args)
-        model = GPT(gptconf)
-    elif C.init_from == "resume":
-        # if the model is loaded from a checkpoint, finetune head only if specified
+
+    if C.init_from == "resume":
+        # Load checkpoint
         print(f"Resuming training from {C.out_dir}...")
         ckpt_path = os.path.join(C.out_dir, "ckpt.pt")
         checkpoint = torch.load(ckpt_path, map_location=C.device)
         checkpoint_model_args = checkpoint["model_args"]
-        # force these config attributes to be equal otherwise we can't even resume training;
-        #  the rest of the attributes (e.g. dropout) can stay as desired
+        
+        # Update model arguments based on checkpoint
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
             model_args[k] = checkpoint_model_args[k]
+        
+        model_args["finetune_method"] = C.finetune_method
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
+
+        # Load state_dict and adjust as needed
         state_dict = checkpoint["model"]
-        # fix the keys of the state dictionary
         unwanted_prefix = "_orig_mod."
         for k, v in list(state_dict.items()):
             if k.startswith(unwanted_prefix):
                 state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+
         model.load_state_dict(state_dict)
-        iter_num = checkpoint["iter_num"]
+
+        # Check for vocabulary size mismatch and resize if necessary
+        checkpoint_vocab_size = checkpoint_model_args.get("vocab_size", None)
+        if checkpoint_vocab_size is not None and meta_vocab_size is not None:
+            if checkpoint_vocab_size != meta_vocab_size:
+                print(f"Vocabulary size mismatch detected: checkpoint has {checkpoint_vocab_size}, dataset has {meta_vocab_size}")
+                print(f"Resizing token embeddings from {checkpoint_vocab_size} to {meta_vocab_size}")
+                model.resize_token_embeddings(meta_vocab_size)
+                model.transformer.wte.weight.grad = None  # Clear gradients for resized embeddings
+
+        iter_num = 0
         best_val_loss = checkpoint["best_val_loss"]
-    
-    # Resize the token embeddings if the vocab size has changed (CB: added this)
-    if model.config.vocab_size != model.config.new_vocab_size:
-        model.resize_token_embeddings(model.config.new_vocab_size)
+
 
     # crop down the model block size if desired, using model surgery
     if C.block_size < model.config.block_size:
@@ -212,29 +227,65 @@ if __name__ == "__main__":
     # initialize a GradScaler; if enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(C.dtype == "float16"))
 
-    # handle the finetuning of the model head (CB: added this)
-    if C.finetune_head:
+    # Finetuning methods (CB: added this)
+    if C.init_from == "resume" and C.finetune_method == 'freeze_head':
         print("Finetuning head only: Freezing transformer layers")
         for param in model.transformer.parameters():
             param.requires_grad = False
-        for param in model.lm_head.parameters():
+        # Ensure both tied weights are set correctly
+        model.transformer.wte.weight.requires_grad = True
+        model.lm_head.weight.requires_grad = True
+
+    if C.init_from == "resume" and C.finetune_method == 'finetune_all':
+        print("Finetuning all layers")
+        for param in model.parameters():
             param.requires_grad = True
+
+    if C.init_from == "resume" and C.finetune_method == 'LoRA':
+        print("Finetuning using LoRA")
+        # With LoRA, only LoRA-marked parameters are trainable
+        for name, param in model.named_parameters():
+            param.requires_grad = 'lora' in name
 
     # optimizer
     optimizer = model.configure_optimizers(C.weight_decay, C.learning_rate, (C.beta1, C.beta2))
-
     if C.init_from == "resume":
+        print("Loading optimizer state from checkpoint... to avoid tensor mismatch errors")
         optimizer.load_state_dict(checkpoint["optimizer"])
-        # Set up the optimizer such that only the trainable parameters are updated (CB: added this)
-        for group in optimizer.param_groups:
-            for param in group["params"]:
-                if not param.requires_grad:
-                    assert param.grad is None
+
+        # Remove optimizer state entries for parameters whose sizes have changed
+        def _optimizer_state_shape_mismatch(param, opt_state_param):
+            for state_key, state_value in opt_state_param.items():
+                if torch.is_tensor(state_value):
+                    if state_value.shape != param.shape:
+                        return True
+            return False
+
+        state = optimizer.state
+        param_keys = list(state.keys())
+        for param in param_keys:
+            if _optimizer_state_shape_mismatch(param, state[param]):
+                print(f"Removing optimizer state for parameter with shape mismatch: {param.shape}")
+                del state[param]
 
     if C.compile:
         print("Compiling the model (takes a ~minute)...")
         unoptimized_model = model
         model = torch.compile(model)  # requires PyTorch 2.0
+
+    # # Sanity Check: Ensure that the correct parameters are set as trainable - CB: added this
+    print("===== Sanity Check: Trainable Parameters =====")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"Trainable: {name}")
+        else:
+            print(f"Frozen: {name}")
+
+    # Print a summary of trainable versus frozen parameters
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {total_params}")
+    print(f"Trainable parameters: {trainable_params} ({100.0 * trainable_params / total_params:.2f}%)")
 
     # helps estimate an arbitrarily accurate loss over either split using many batches
     @torch.no_grad()
@@ -266,11 +317,29 @@ if __name__ == "__main__":
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
         return C.min_lr + coeff * (C.learning_rate - C.min_lr)
 
+    # wandb logging
+    if C.wandb_log:
+        import wandb
+        wandb.login(key='5f5e743f253c050dda2db65cbf8864cd444f40b9')
+        wandb.init(project=C.wandb_project, name=C.wandb_run_name + str(time.time()), config=dict(C))
+        config = OmegaConf.to_container(C)
+
     # training loop
     X, Y = get_batch("train")
     t0 = time.time()
     local_iter_num = 0  # number of iterations in the lifetime of this process
     running_mfu = -1.0
+
+    # Dictionary to store parameter states before update (CB: added this)
+    # Save parameters before the update (for sanity check)
+    if iter_num == 0:
+        param_updates = {}
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                # Remove '_orig_mod.' prefix if it exists when saving
+                name_without_prefix = name.replace('_orig_mod.', '')
+                param_updates[name_without_prefix] = param.clone().detach()
+
     while True:
 
         # determine and set the learning rate for this iteration
@@ -283,9 +352,17 @@ if __name__ == "__main__":
             if C.validate:
                 losses = estimate_loss()
                 print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                if C.wandb_log:
+                    wandb.log({
+                        "iter": iter_num,
+                        "train_loss": losses["train"],
+                        "val_loss": losses["val"],
+                        "lr": lr,
+                    })
             if (C.validate and losses["val"] < best_val_loss) or C.always_save_checkpoint:
                 best_val_loss = losses["val"] if C.validate else 0.
                 if iter_num > 0:
+                    model_args['vocab_size'] = model.config.new_vocab_size
                     checkpoint = {
                         "model": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -319,6 +396,24 @@ if __name__ == "__main__":
         # step the optimizer and scaler if training in fp16
         scaler.step(optimizer)
         scaler.update()
+
+        # After optimizer step, print parameter differences (sanity check)
+        if iter_num == 0:
+            print("===== Sanity Check: Parameter Changes After Update =====")
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    # Remove '_orig_mod.' prefix to match saved names
+                    name_without_prefix = name.replace('_orig_mod.', '')
+
+                    if name_without_prefix in param_updates:
+                        old_param = param_updates[name_without_prefix]
+                        update = param - old_param
+                        update_norm = update.norm().item()
+                        print(f"Parameter: {name}, Update Norm: {update_norm}")
+                    else:
+                        print(f"Warning: Parameter '{name}' not found in saved param_updates. Skipping.")
+            print("=========================================================")
+
         # flush the gradients as soon as we can, no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
 

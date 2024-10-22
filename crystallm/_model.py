@@ -12,6 +12,8 @@ from torch.nn import functional as F
 
 from crystallm import CIFTokenizer
 
+import loralib as lora
+
 
 @dataclass
 class GPTConfig:
@@ -23,6 +25,10 @@ class GPTConfig:
     n_embd: int = 768
     dropout: float = 0.0
     bias: bool = True
+    lora_r: int = 8   # Rank for LoRA
+    lora_alpha: int = 8  # Scaling factor for LoRA
+    lora_dropout: float = 0.1  # Optional dropout for LoRA
+    finetune_method: str = 'finetune_all'  # Method for fine-tuning the model (CB: added this)
 
 
 class LayerNorm(nn.Module):
@@ -170,6 +176,17 @@ class GPT(nn.Module):
 
         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
 
+        # CB: added this, to allow for fine-tuning with LoRA
+        if self.config.finetune_method == 'LoRA':
+            # Apply LoRA to certain layers, e.g., transformer blocks
+            for name, module in self.named_modules():
+                if isinstance(module, nn.Linear):
+                    # Apply LoRA with the specified rank and alpha
+                    lora_layer = lora.Linear(module.in_features, module.out_features, 
+                                            r=config.lora_r, lora_alpha=config.lora_alpha)
+                    setattr(self, name, lora_layer)
+                    lora.mark_only_lora_as_trainable(lora_layer)
+
     def get_num_params(self, non_embedding: bool = True) -> int:
         """
         Return the number of parameters in the model. Subtract the position embeddings
@@ -250,11 +267,14 @@ class GPT(nn.Module):
         # model surgery to decrease the block size if necessary
         # e.g. we may load the GPT2 pretrained model checkpoint (block size 1024)
         # but want to use a smaller block size for some smaller, simpler model
+        # implement by cropping the position embeddings to the desired size, handling the case where pytorch is not new enough (CB: added this)
         assert block_size <= self.config.block_size
         self.config.block_size = block_size
         self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:block_size])
         for block in self.transformer.h:
-            block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]
+            # Check if bias exists (when Flash Attention is not available)
+            if hasattr(block.attn, 'bias'):
+                block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]
 
     def configure_optimizers(self, weight_decay, learning_rate, betas):
         """

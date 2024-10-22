@@ -167,13 +167,14 @@ saved_models/
 .DS_Store
 
 # large files
-Miniconda3.sh
-crystallm_v1_small.tar.gz
-crystallm_v1_small/
+useless/Miniconda3.sh
+useless/cron_jobs
 cuda-repo-wsl-ubuntu-11-8-local_11.8.0-1_amd64.deb
-BG_CIFs/
-BG_cifs_more_tokens/
-BG_cifs_process_steps/
+CIF_BG_proj/BG_CIFs/
+CIF_BG_proj/BG_cifs_process_steps/
 crystallm_container.sif
-small_model_untouched/
-cron_jobs/
+pretrained_models/
+CIF_BG_proj/BG_large_tokens/
+CIF_BG_proj/BG_test_tokens/
+compressed_datasets_models/
+finetuned_models/

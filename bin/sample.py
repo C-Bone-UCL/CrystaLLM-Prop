@@ -1,13 +1,10 @@
-"""
-Adapted from:
-https://github.com/karpathy/nanoGPT/blob/eba36e84649f3c6d840a93092cb779a260544d08/sample.py
-"""
 import os
 from dataclasses import dataclass
 
 from contextlib import nullcontext
 from omegaconf import OmegaConf
 import torch
+import pickle
 
 from crystallm import (
     parse_config,
@@ -31,6 +28,8 @@ class SampleDefaults:
     compile: bool = False  # use PyTorch 2.0 to compile the model to be faster
     target: str = "console"  # where the generated content will be sent; can also be 'file'
     generated_dir: str = "generated_cifs"
+    token_resize: bool = False  # resize token embeddings to match the checkpoint's vocab size - if set top true, need to provide dataset path
+    dataset: str = "data"  # the path to the directory containing the dataset
 
 if __name__ == "__main__":
     C = parse_config(SampleDefaults)
@@ -50,23 +49,67 @@ if __name__ == "__main__":
     encode = tokenizer.encode
     decode = tokenizer.decode
 
+    #load meta vocab size
+    if C.token_resize and C.dataset:
+        print("Resizing token embeddings to match the checkpoint's vocab size")
+        meta_path = os.path.join(C.dataset, "meta.pkl")
+        meta_vocab_size = None
+        if os.path.exists(meta_path):
+            with open(meta_path, "rb") as f:
+                meta = pickle.load(f)
+            meta_vocab_size = meta["vocab_size"]
+            print(f"Found vocab_size = {meta_vocab_size} (inside {meta_path})")
+
+    # Load the checkpoint
     ckpt_path = os.path.join(C.out_dir, "ckpt.pt")
     checkpoint = torch.load(ckpt_path, map_location=C.device)
-    gptconf = GPTConfig(**checkpoint["model_args"])
-    model = GPT(gptconf)
+    checkpoint_model_args = checkpoint["model_args"]
+    checkpoint_model_args['vocab_size'] = meta_vocab_size  # Ensure vocab_size is set
+    print("Model configuration:")
+    print(OmegaConf.to_yaml(checkpoint_model_args))
     state_dict = checkpoint["model"]
+
+    # Now create the model with the correct vocab_size
+    gptconf = GPTConfig(**checkpoint_model_args)
+    # Create model with the config from the checkpoint
+    model = GPT(gptconf)
+
+    # Fix any unwanted prefix in state_dict
     unwanted_prefix = "_orig_mod."
     for k, v in list(state_dict.items()):
         if k.startswith(unwanted_prefix):
             state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-    model.load_state_dict(state_dict)
 
+    # Load the state dict into the model
+    try:
+        model.load_state_dict(state_dict)
+        print("Model loaded successfully.")
+    except RuntimeError as e:
+        print(f"Error loading state_dict: {e}")
+
+    # Ensure the model is on the correct device and in evaluation mode
     model.eval()
     model.to(C.device)
+
+    # print the best model configuration loss
+    # Print the best validation loss from the checkpoint
+    best_val_loss = checkpoint.get("best_val_loss", None)
+    if best_val_loss is not None:
+        print(f"Best validation loss (from checkpoint): {best_val_loss:.4f}")
+    else:
+        print("Validation loss not found in checkpoint.")
+
+    # Optionally print the train loss if it was saved (update this if you stored it in the checkpoint)
+    train_loss = checkpoint.get("train_loss", None)
+    if train_loss is not None:
+        print(f"Training loss (from checkpoint): {train_loss:.4f}")
+    else:
+        print("Training loss not found in checkpoint.")
+
     if C.compile:
         model = torch.compile(model)  # requires PyTorch 2.0 (optional)
 
-    # encode the beginning of the prompt
+    # Encode the prompt
     prompt = C.start
     if prompt.startswith("FILE:"):
         with open(prompt[5:], "r", encoding="utf-8") as f:
@@ -74,7 +117,7 @@ if __name__ == "__main__":
     start_ids = encode(tokenizer.tokenize_cif(prompt))
     x = torch.tensor(start_ids, dtype=torch.long, device=C.device)[None, ...]
 
-    # run generation
+    # Run generation
     with torch.no_grad():
         with ctx:
             for k in range(C.num_samples):

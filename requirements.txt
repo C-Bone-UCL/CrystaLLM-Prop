@@ -8,3 +8,5 @@ omegaconf==2.3.0
 pyyaml==6.0.1
 smact==2.5.5
 matminer==0.9.0
+loralib==0.1.2
+wandb==0.12.4

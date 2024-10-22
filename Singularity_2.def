@@ -1,0 +1,36 @@
+Bootstrap: docker
+From: continuumio/miniconda3  # Keeping your original base image
+
+%files
+    /home/cyprien/CrystaLLM /opt
+
+%post
+    # Install build-essential and other system dependencies
+    apt update
+    apt install -y build-essential  # Required for compilation
+
+    # Activate Conda and install the specific GCC version
+    . /opt/conda/etc/profile.d/conda.sh
+    conda install -n base -c conda-forge gcc=9  # Install GCC 9 via Conda
+    
+    # Create and activate the conda environment
+    conda create -n crystallm_env python=3.10 -y
+    conda activate crystallm_env
+
+    # Install PyTorch with CUDA support
+    pip install torch==2.0.1+cu118 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+    # Install project dependencies
+    cd /opt/CrystaLLM/
+    pip install -r requirements.txt
+    pip install -e .
+
+%environment
+    export LC_ALL=C
+    export LANG=C
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate crystallm_env
+
+%runscript
+    cd /opt/CrystaLLM
+    exec "$@"
