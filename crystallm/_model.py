@@ -12,8 +12,6 @@ from torch.nn import functional as F
 
 from crystallm import CIFTokenizer
 
-import loralib as lora
-
 
 @dataclass
 class GPTConfig:
@@ -148,6 +146,32 @@ class Block(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
+# LoRA Implementation, (CB: added this)
+class LoRALayer(nn.Module):
+    def __init__(self, in_dim, out_dim, rank, alpha):
+        super().__init__()
+        std_dev = 1 / math.sqrt(rank)
+        self.A = nn.Parameter(torch.randn(in_dim, rank) * std_dev)
+        self.B = nn.Parameter(torch.zeros(rank, out_dim))
+        self.alpha = alpha
+
+    def forward(self, x):
+        return self.alpha * (x @ self.A @ self.B)
+
+# model.py
+
+class LinearWithLoRA(nn.Module):
+    def __init__(self, old_linear: nn.Linear, rank: int, alpha: int):
+        super().__init__()
+        # Create a new linear layer and copy weights and bias
+        self.linear = nn.Linear(old_linear.in_features, old_linear.out_features, bias=(old_linear.bias is not None))
+        self.linear.weight = old_linear.weight
+        if old_linear.bias is not None:
+            self.linear.bias = old_linear.bias
+        self.lora = LoRALayer(old_linear.in_features, old_linear.out_features, rank, alpha)
+
+    def forward(self, x):
+        return self.linear(x) + self.lora(x)
 
 class GPT(nn.Module):
 
@@ -175,17 +199,6 @@ class GPT(nn.Module):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
-
-        # CB: added this, to allow for fine-tuning with LoRA
-        if self.config.finetune_method == 'LoRA':
-            # Apply LoRA to certain layers, e.g., transformer blocks
-            for name, module in self.named_modules():
-                if isinstance(module, nn.Linear):
-                    # Apply LoRA with the specified rank and alpha
-                    lora_layer = lora.Linear(module.in_features, module.out_features, 
-                                            r=config.lora_r, lora_alpha=config.lora_alpha)
-                    setattr(self, name, lora_layer)
-                    lora.mark_only_lora_as_trainable(lora_layer)
 
     def get_num_params(self, non_embedding: bool = True) -> int:
         """
@@ -238,6 +251,41 @@ class GPT(nn.Module):
             self.lm_head = nn.Linear(self.config.n_embd, new_vocab_size, bias=False)
             self.lm_head.weight = self.transformer.wte.weight
 
+    # CB: added this
+    def replace_linear_with_lora(self, rank: int = 16, alpha: int = 16):
+        """
+        Replace all nn.Linear layers in the transformer with LinearWithLoRA.
+        """
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                parent_name = '.'.join(name.split('.')[:-1])
+                module_name = name.split('.')[-1]
+                parent_module = self.get_submodule(parent_name)
+                old_linear = getattr(parent_module, module_name)
+                lora_linear = LinearWithLoRA(old_linear, rank, alpha)
+                setattr(parent_module, module_name, lora_linear)
+
+    def get_submodule(self, target_name):
+        """
+        Recursively find the submodule given a dotted path.
+        """
+        names = target_name.split('.')
+        module = self
+        for name in names:
+            if name:
+                module = getattr(module, name)
+        return module
+    
+    # def _replace_linear(self, module, rank: int, alpha: int):
+    #     """
+    #     Recursively replace all nn.Linear layers in the module with LinearWithLoRA.
+    #     """
+    #     for name, child in module.named_children():
+    #         if isinstance(child, nn.Linear):
+    #             setattr(module, name, LinearWithLoRA(child, rank, alpha))
+    #         else:
+    #             self._replace_linear(child, rank, alpha)
+
     def forward(self, idx, targets=None):
         device = idx.device
         b, t = idx.size()
@@ -287,23 +335,43 @@ class GPT(nn.Module):
         # separate out all parameters to those that will and won't experience regularizing weight decay
         decay = set()
         no_decay = set()
-        whitelist_weight_modules = (torch.nn.Linear, )
-        blacklist_weight_modules = (torch.nn.LayerNorm, LayerNorm, torch.nn.Embedding)
-        for mn, m in self.named_modules():
-            for pn, p in m.named_parameters():
-                fpn = "%s.%s" % (mn, pn) if mn else pn # full param name
-                # random note: because named_modules and named_parameters are recursive
-                # we will see the same tensors p many many times. but doing it this way
-                # allows us to know which parent module any tensor p belongs to...
-                if pn.endswith("bias"):
-                    # all biases will not be decayed
-                    no_decay.add(fpn)
-                elif pn.endswith("weight") and isinstance(m, whitelist_weight_modules):
-                    # weights of whitelist modules will be weight decayed
+
+        whitelist_weight_modules = (torch.nn.Linear, LinearWithLoRA)
+        blacklist_weight_modules = (torch.nn.LayerNorm, LayerNorm, torch.nn.Embedding, LoRALayer)
+
+        # if the config sinetune method is LoRA, then put all the LoRA layers in the no_decay set
+        # if any other method is used, sort the parameters into decay and no_decay sets
+
+        if self.config.finetune_method == 'LoRA':
+            for mn, m in self.named_modules():
+                for pn, p in m.named_parameters():
+                    # Skip parameters that are not trainable
+                    if not p.requires_grad:
+                        continue
+
+                    fpn = f"{mn}.{pn}" if mn else pn
+
                     decay.add(fpn)
-                elif pn.endswith("weight") and isinstance(m, blacklist_weight_modules):
-                    # weights of blacklist modules will NOT be weight decayed
-                    no_decay.add(fpn)
+                    if self.config.sanity_check == True:
+                        print(f"weight decay applied to {fpn}, it's a {m.__class__}")
+                    continue
+
+        else:
+            for mn, m in self.named_modules():
+                for pn, p in m.named_parameters():
+                    fpn = "%s.%s" % (mn, pn) if mn else pn # full param name
+                    # random note: because named_modules and named_parameters are recursive
+                    # we will see the same tensors p many many times. but doing it this way
+                    # allows us to know which parent module any tensor p belongs to...
+                    if pn.endswith("bias"):
+                        # all biases will not be decayed
+                        no_decay.add(fpn)
+                    elif pn.endswith("weight") and isinstance(m, whitelist_weight_modules):
+                        # weights of whitelist modules will be weight decayed
+                        decay.add(fpn)
+                    elif pn.endswith("weight") and isinstance(m, blacklist_weight_modules):
+                        # weights of blacklist modules will NOT be weight decayed
+                        no_decay.add(fpn)
 
         # subtle: "transformer.wte.weight" and "lm_head.weight" are tied, so they
         # will appear in the no_decay and decay sets respectively after the above.
@@ -311,17 +379,26 @@ class GPT(nn.Module):
         # will only return the first occurrence, keyed by "transformer.wte.weight", below.
         # so let's manually remove "lm_head.weight" from decay set. This will include
         # this tensor into optimization via transformer.wte.weight only, and not decayed.
-        decay.remove("lm_head.weight")
 
-        # validate that we considered every parameter
-        param_dict = {pn: p for pn, p in self.named_parameters()}
+        # # CB: added this
+        # # Manually handle any specific parameters if needed
+        
+        if self.config.finetune_method != 'LoRA':
+            decay.remove("lm_head.weight")
+            print("removed lm_head.weight from decay set to not have weight decay applied")
+            # validate that we considered every parameter
+            param_dict = {pn: p for pn, p in self.named_parameters()}
+        if self.config.finetune_method == 'LoRA':
+            # validate that we considered every parameter
+            param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+
         inter_params = decay & no_decay
         union_params = decay | no_decay
         assert len(inter_params) == 0, "parameters %s made it into both decay/no_decay sets!" % (str(inter_params), )
         assert len(param_dict.keys() - union_params) == 0, "parameters %s were not separated into either decay/no_decay set!" \
                                                     % (str(param_dict.keys() - union_params), )
 
-        # create the pytorch optimizer object
+        # create the pytorch optimizer object according to the above settings
         optim_groups = [
             {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": weight_decay},
             {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
@@ -379,3 +456,43 @@ class GPT(nn.Module):
             prev_id = idx_next.item()
 
         return idx
+
+    # @torch.no_grad()
+    # def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+    #     """
+    #     Generate new tokens using the model, with compatibility for LoRA layers.
+    #     """
+    #     tokenizer = CIFTokenizer()
+    #     newline_id = tokenizer.token_to_id["\n"]
+    #     prev_id = None
+
+    #     # Initialize LoRA parameters with zeros if max_new_tokens is specified
+    #     # for name, module in self.named_modules():
+    #     #     if isinstance(module, LinearWithLoRA):
+    #     #         module.lora.A.data.zero_()
+    #     #         module.lora.B.data.zero_()
+
+    #     for _ in range(max_new_tokens):
+    #         # if the sequence context is growing too long we must crop it at block_size
+    #         idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+    #         # forward the model to get the logits for the index in the sequence
+    #         logits, _ = self(idx_cond)
+    #         logits = logits[:, -1, :] / temperature
+
+    #         # optionally crop the logits to only the top k options
+    #         if top_k is not None:
+    #             v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+    #             logits[logits < v[:, [-1]]] = -float("Inf")
+
+    #         # apply softmax to convert logits to (normalized) probabilities
+    #         probs = F.softmax(logits, dim=-1)
+    #         idx_next = torch.multinomial(probs, num_samples=1)
+
+    #         # append sampled index to the running sequence and continue
+    #         idx = torch.cat((idx, idx_next), dim=1)
+
+    #         if prev_id is not None and prev_id == newline_id and idx_next.item() == newline_id:
+    #             break
+    #         prev_id = idx_next.item()
+
+    #     return idx

@@ -1,41 +1,51 @@
-out_dir: "large_model_untouched" # path to model ckpt to train on
-eval_interval: 50  # how often to evaluate against the validation set
-eval_iters_train: 50
-eval_iters_val: 50
-log_interval: 50  # how often to print to the console (1 = every iteration)
+# directories and checkpoints
+out_dir: "pretrained_models/large_model_untouched" # path to model ckpt to train on
+dataset: "CIF_BG_proj/BG_large_tokens"
 init_from: "resume"
+finetune_method : "finetune_head"
+ckpt_out_dir: "finetuned_models/BG_head_test"  # the path to the directory to save the checkpoints
 
-# whether to always save a checkpoint
-always_save_checkpoint: True
+# evaluation frequency
+always_save_checkpoint: False
 validate: True
-ckpt_out_dir: "finetuned_models/BG_head"  # the path to the directory to save the checkpoints
+eval_interval: 5
+eval_iters_train: 2
+eval_iters_val: 2
+log_interval: 2  # how often to print to the console (1 = every iteration)
+sanity_check: True  # if True, prints resizing of tensor details
 
-dataset: "BG_large_tokens"
+# batch and block sizes
 gradient_accumulation_steps: 4
-batch_size: 8
-block_size: 2048  # context of up to `block_size` previous characters
+batch_size: 4
+block_size: 1024  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 14
-n_head: 14
+n_layer: 12
+n_head: 12
 n_embd: 1024
 dropout: 0.1
 
+# trackers
+codecarbon: False  # if True, log emissions to CodeCarbon
+tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
+metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
+CarbonTracker: False  # if True, log emissions to CarbonTracker
+
 #wandb
 wandb_log: True # disabled by default
-wandb_project: 'crystallm_CIF_BG'
+wandb_project: 'crystallm_CIF_BG_tests'
 wandb_run_name: 'BG_large_head'
 
-learning_rate: 1e-3
+# learning rate and optimizer
+learning_rate: 1e-4
 decay_lr: True
-max_iters: 8000
-lr_decay_iters: 8000  # make equal to max_iters usually
-min_lr: 1e-4  # learning_rate / 10 usually
+lr_decay_iters: 50  # make equal to max_iters usually
+min_lr: 1e-5  # learning_rate / 10 usually
 beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
+# training iterations
+max_iters: 4
 warmup_iters: 100  # not super necessary potentially
-
-finetune_method : "freeze_head"
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only

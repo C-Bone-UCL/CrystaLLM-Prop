@@ -31,6 +31,22 @@ class SampleDefaults:
     token_resize: bool = False  # resize token embeddings to match the checkpoint's vocab size - if set top true, need to provide dataset path
     dataset: str = "data"  # the path to the directory containing the dataset
 
+def load_state_dict_LoRA(model, state_dict):
+    model_state_dict = model.state_dict()
+
+    # Filter out keys that are in the model state_dict but not in the provided state_dict
+    filtered_state_dict = {k: v for k, v in state_dict.items() if k in model_state_dict}
+
+    # Load the filtered state dict with strict=False to ignore missing LoRA keys
+    model.load_state_dict(filtered_state_dict, strict=False)
+
+    # Initialize any remaining LoRA parameters that were not in the state_dict
+    for name, param in model.named_parameters():
+        if name not in filtered_state_dict:
+            param.data.uniform_(-0.01, 0.01)  # You may adjust this initialization as needed.
+
+    print("Loaded state_dict with LoRA compatibility.")
+
 if __name__ == "__main__":
     C = parse_config(SampleDefaults)
 
@@ -51,14 +67,13 @@ if __name__ == "__main__":
 
     #load meta vocab size
     if C.token_resize and C.dataset:
-        print("Resizing token embeddings to match the checkpoint's vocab size")
         meta_path = os.path.join(C.dataset, "meta.pkl")
         meta_vocab_size = None
         if os.path.exists(meta_path):
             with open(meta_path, "rb") as f:
                 meta = pickle.load(f)
             meta_vocab_size = meta["vocab_size"]
-            print(f"Found vocab_size = {meta_vocab_size} (inside {meta_path})")
+            print(f"Found dataset vocab_size = {meta_vocab_size} (inside {meta_path})")
 
     # Load the checkpoint
     ckpt_path = os.path.join(C.out_dir, "ckpt.pt")
@@ -80,9 +95,12 @@ if __name__ == "__main__":
         if k.startswith(unwanted_prefix):
             state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
 
-    # Load the state dict into the model
+    # Load the state dict into the model (CB: added this) for LoRA compatibility
     try:
-        model.load_state_dict(state_dict)
+        if model.config.finetune_method == "LoRA":
+            load_state_dict_LoRA(model, state_dict)
+        else:
+            model.load_state_dict(state_dict)
         print("Model loaded successfully.")
     except RuntimeError as e:
         print(f"Error loading state_dict: {e}")
@@ -108,6 +126,7 @@ if __name__ == "__main__":
 
     if C.compile:
         model = torch.compile(model)  # requires PyTorch 2.0 (optional)
+        print("Model compiled successfully.")
 
     # Encode the prompt
     prompt = C.start
@@ -120,10 +139,14 @@ if __name__ == "__main__":
     # Run generation
     with torch.no_grad():
         with ctx:
+            print("Generating samples...")
             for k in range(C.num_samples):
-                y = model.generate(x, C.max_new_tokens, temperature=C.temperature, top_k=C.top_k)
-
-                generated = decode(y[0].tolist())
+                try:
+                    y = model.generate(x, C.max_new_tokens, temperature=C.temperature, top_k=C.top_k)
+                    generated = decode(y[0].tolist())
+                except Exception as e:
+                    print(f"Error generating sample: {e}")
+                    continue
 
                 if C.target == "console":
                     print(generated)

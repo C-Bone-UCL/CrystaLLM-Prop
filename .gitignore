@@ -178,3 +178,6 @@ CIF_BG_proj/BG_large_tokens/
 CIF_BG_proj/BG_test_tokens/
 compressed_datasets_models/
 finetuned_models/
+wandb/
+cif.txt
+

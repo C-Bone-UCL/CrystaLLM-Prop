@@ -15,10 +15,17 @@ import torch
 import pickle
 from contextlib import nullcontext
 
+from codecarbon import OfflineEmissionsTracker
+from carbontracker.tracker import CarbonTracker
+from carbontracker import parser
+
+
 from crystallm import (
     GPT,
     GPTConfig,
 )
+
+import logging
 
 @dataclass
 class TrainDefaults:
@@ -34,7 +41,7 @@ class TrainDefaults:
 
     # wandb logging
     wandb_log: bool = False # disabled by default
-    wandb_project:str = 'crystallm_CIF_BG'
+    wandb_project:str = 'crystallm_BG_CIF'
     wandb_run_name:str = 'BG_large'
 
     # data
@@ -71,8 +78,21 @@ class TrainDefaults:
     underrep_p: float = 0.0
     validate: bool = False  # whether to evaluate the model using the validation set
 
+    # log metrics
+    codecarbon: bool = False  # if True, log emissions to CodeCarbon
+    tracker_project: str = "crystallm"  # the name of the project in the CodeCarbon dashboard
+    metrics_dir: str = "comp_metrics/"  # the path to the folder where the metrics will be stored
+    CarbonTracker: bool = False  # if True, log emissions to CarbonTracker
+
+    # LoRA metrics
+    LoRA_rank: int = "16"
+    LoRA_alpha: int = "32"
+
     # finetune argument (CB: added this)
-    finetune_method: str = 'finetune_all'  # finetune the model on the dataset (CB: added this) (ex: 'freeze_head', 'finetune_all', 'LoRA')
+    finetune_method: str = 'finetune_all'  # finetune the model on the dataset (CB: added this) (ex: 'finetune_head', 'finetune_all', 'LoRA')
+
+    # sanity check
+    sanity_check: bool = False  # if True, print parameter changes after update (CB: added this)
 
 def read_start_indices(
     max_start_index: int,
@@ -80,7 +100,8 @@ def read_start_indices(
     starts_fname: str,
     on_condition: bool = True,
     required: bool = False,
-) -> Union[torch.Tensor, None]:
+    # CB: added this (previoously was ') -> Union[torch.Tensor, None]:')
+) -> torch.Tensor | None:
     start_indices = None
     starts_path = os.path.join(data_dir, starts_fname)
     if on_condition:
@@ -94,15 +115,35 @@ def read_start_indices(
             raise Exception(f"Expected to find a file in dataset dir named '{starts_fname}'")
     return start_indices
 
-
 if __name__ == "__main__":
     C = parse_config(TrainDefaults)
 
     print("Using configuration:")
     print(OmegaConf.to_yaml(C))
 
-    print(f"Creating {C.out_dir}...")
+    # CodeCarbon tracker (CB: added this)
+    if C.codecarbon:
+        # make sure metrics_dir exists
+        os.makedirs(C.metrics_dir, exist_ok=True)
+
+        tracker = OfflineEmissionsTracker(
+        output_dir=C.metrics_dir,
+        project_name=f'{C.tracker_project}',
+        country_iso_code="GBR",  # Replace with your country code
+        )
+        tracker.start()
+
+    if C.CarbonTracker:
+        tracker = CarbonTracker(epochs=C.max_iters, log_dir=C.metrics_dir)
+
     os.makedirs(C.out_dir, exist_ok=True)
+    if C.init_from == "scratch":
+        print(f"Creating {C.out_dir}...")
+    elif C.init_from == "resume":
+        if not os.path.exists(C.out_dir):
+            raise Exception(f"Could not find {C.out_dir} to resume from")
+        else:
+            print(f"Resuming from {C.out_dir}...")
 
     torch.manual_seed(1337)
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
@@ -205,7 +246,7 @@ if __name__ == "__main__":
 
         model.load_state_dict(state_dict)
 
-        # Check for vocabulary size mismatch and resize if necessary
+        # Check for vocabulary size mismatch and resize if necessary (CB: added this)
         checkpoint_vocab_size = checkpoint_model_args.get("vocab_size", None)
         if checkpoint_vocab_size is not None and meta_vocab_size is not None:
             if checkpoint_vocab_size != meta_vocab_size:
@@ -217,18 +258,29 @@ if __name__ == "__main__":
         iter_num = 0
         best_val_loss = checkpoint["best_val_loss"]
 
+        if C.finetune_method == 'LoRA':
+            # Replace linear layers with LoRA layers (CB: added this)
+            print("Replacing linear layers with LoRA layers")
+            model.replace_linear_with_lora(rank=C.LoRA_rank, alpha=C.LoRA_alpha)
+            # state dict thing?
+            unwanted_prefix = "_orig_mod."
+            for k, v in list(state_dict.items()):
+                if k.startswith(unwanted_prefix):
+                    state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+
 
     # crop down the model block size if desired, using model surgery
     if C.block_size < model.config.block_size:
         model.crop_block_size(C.block_size)
         model_args["block_size"] = C.block_size  # so that the checkpoint will have the right value
+
     model.to(C.device)
 
     # initialize a GradScaler; if enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(C.dtype == "float16"))
 
     # Finetuning methods (CB: added this)
-    if C.init_from == "resume" and C.finetune_method == 'freeze_head':
+    if C.init_from == "resume" and C.finetune_method == 'finetune_head':
         print("Finetuning head only: Freezing transformer layers")
         for param in model.transformer.parameters():
             param.requires_grad = False
@@ -242,50 +294,65 @@ if __name__ == "__main__":
             param.requires_grad = True
 
     if C.init_from == "resume" and C.finetune_method == 'LoRA':
-        print("Finetuning using LoRA")
-        # With LoRA, only LoRA-marked parameters are trainable
+        print("Setting requires_grad for LoRA parameters")
         for name, param in model.named_parameters():
-            param.requires_grad = 'lora' in name
+            if 'lora' in name.lower():
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
     # optimizer
     optimizer = model.configure_optimizers(C.weight_decay, C.learning_rate, (C.beta1, C.beta2))
-    if C.init_from == "resume":
+    if C.init_from == "resume" and C.finetune_method != 'LoRA':
         print("Loading optimizer state from checkpoint... to avoid tensor mismatch errors")
         optimizer.load_state_dict(checkpoint["optimizer"])
 
-        # Remove optimizer state entries for parameters whose sizes have changed
+        # Remove optimizer state entries for parameters whose sizes have changed (CB: added this)
         def _optimizer_state_shape_mismatch(param, opt_state_param):
             for state_key, state_value in opt_state_param.items():
                 if torch.is_tensor(state_value):
                     if state_value.shape != param.shape:
                         return True
             return False
-
+        
+        # Remove optimizer state entries for parameters whose sizes have changed (CB: added this)
         state = optimizer.state
         param_keys = list(state.keys())
         for param in param_keys:
             if _optimizer_state_shape_mismatch(param, state[param]):
-                print(f"Removing optimizer state for parameter with shape mismatch: {param.shape}")
+                if C.sanity_check:
+                    print(f"Removing optimizer state for parameter with shape mismatch: {param.shape}")
                 del state[param]
+    else:
+        print("Initializing optimizer from scratch...")
 
     if C.compile:
         print("Compiling the model (takes a ~minute)...")
         unoptimized_model = model
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    # # Sanity Check: Ensure that the correct parameters are set as trainable - CB: added this
-    print("===== Sanity Check: Trainable Parameters =====")
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"Trainable: {name}")
-        else:
-            print(f"Frozen: {name}")
+    if C.init_from == "resume" and C.finetune_method == 'LoRA':
+        print("Setting requires_grad for LoRA parameters")
+        for name, param in model.named_parameters():
+            if 'lora' in name.lower():
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
     # Print a summary of trainable versus frozen parameters
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Total parameters: {total_params}")
     print(f"Trainable parameters: {trainable_params} ({100.0 * trainable_params / total_params:.2f}%)")
+
+    if C.sanity_check:
+        # Sanity Check: Ensure that the correct parameters are set as trainable - CB: added this
+        print("===== Sanity Check: Trainable Parameters =====")
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(f"Trainable: {name}")
+            else:
+                print(f"Frozen: {name}")
 
     # helps estimate an arbitrarily accurate loss over either split using many batches
     @torch.no_grad()
@@ -331,16 +398,36 @@ if __name__ == "__main__":
     running_mfu = -1.0
 
     # Dictionary to store parameter states before update (CB: added this)
-    # Save parameters before the update (for sanity check)
-    if iter_num == 0:
-        param_updates = {}
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                # Remove '_orig_mod.' prefix if it exists when saving
-                name_without_prefix = name.replace('_orig_mod.', '')
-                param_updates[name_without_prefix] = param.clone().detach()
+    if C.sanity_check:
+        # Save parameters before the update (for sanity check)
+        if iter_num == 0:
+            param_updates = {}
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    # Remove '_orig_mod.' prefix if it exists when saving
+                    name_without_prefix = name.replace('_orig_mod.', '')
+                    param_updates[name_without_prefix] = param.clone().detach()
+
+    print("Warning: torch._inductor.utils warnings are suppressed")
+
+    if C.validate:
+        # Load checkpoint from ckpt_out_dir if it exists (CB: added this)
+        # make sure the directory exists
+        os.makedirs(C.ckpt_out_dir, exist_ok=True)
+        ckpt_out_path = os.path.join(C.ckpt_out_dir, "ckpt.pt")
+        if os.path.exists(ckpt_out_path):
+            checkpoint_out = torch.load(ckpt_out_path, map_location=C.device)
+            best_val_loss_out = checkpoint_out["best_val_loss"]
+            print(f'best val loss found in ckpt_out_dir: {best_val_loss_out}')
+        else:
+            best_val_loss_out = 1e9
 
     while True:
+        if C.CarbonTracker:
+            tracker.epoch_start()
+
+        # Suppress warnings from torch._inductor.utils (CB: Added this)
+        logging.getLogger("torch._inductor.utils").setLevel(logging.ERROR)
 
         # determine and set the learning rate for this iteration
         lr = get_lr(iter_num) if C.decay_lr else C.learning_rate
@@ -359,7 +446,7 @@ if __name__ == "__main__":
                         "val_loss": losses["val"],
                         "lr": lr,
                     })
-            if (C.validate and losses["val"] < best_val_loss) or C.always_save_checkpoint:
+            if (C.validate and losses["val"] < best_val_loss) or (C.validate and losses["val"] < best_val_loss_out) or C.always_save_checkpoint:
                 best_val_loss = losses["val"] if C.validate else 0.
                 if iter_num > 0:
                     model_args['vocab_size'] = model.config.new_vocab_size
@@ -397,22 +484,23 @@ if __name__ == "__main__":
         scaler.step(optimizer)
         scaler.update()
 
-        # After optimizer step, print parameter differences (sanity check)
-        if iter_num == 0:
-            print("===== Sanity Check: Parameter Changes After Update =====")
-            for name, param in model.named_parameters():
-                if param.requires_grad:
-                    # Remove '_orig_mod.' prefix to match saved names
-                    name_without_prefix = name.replace('_orig_mod.', '')
+        if C.sanity_check:
+            # After optimizer step, print parameter differences (sanity check) (CB: added this)
+            if iter_num == 0:
+                print("===== Sanity Check: Parameter Changes After Update =====")
+                for name, param in model.named_parameters():
+                    if param.requires_grad:
+                        # Remove '_orig_mod.' prefix to match saved names
+                        name_without_prefix = name.replace('_orig_mod.', '')
 
-                    if name_without_prefix in param_updates:
-                        old_param = param_updates[name_without_prefix]
-                        update = param - old_param
-                        update_norm = update.norm().item()
-                        print(f"Parameter: {name}, Update Norm: {update_norm}")
-                    else:
-                        print(f"Warning: Parameter '{name}' not found in saved param_updates. Skipping.")
-            print("=========================================================")
+                        if name_without_prefix in param_updates:
+                            old_param = param_updates[name_without_prefix]
+                            update = param - old_param
+                            update_norm = update.norm().item()
+                            print(f"Parameter: {name}, Update Norm: {update_norm}")
+                        else:
+                            print(f"Warning: Parameter '{name}' not found in saved param_updates. Skipping.")
+                print("=========================================================")
 
         # flush the gradients as soon as we can, no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
@@ -430,6 +518,18 @@ if __name__ == "__main__":
         iter_num += 1
         local_iter_num += 1
 
+        if C.CarbonTracker:
+            tracker.epoch_end()
+
         # termination conditions
         if iter_num > C.max_iters:
             break
+
+    # CodeCarbon tracker (CB: added this)
+    if C.codecarbon:
+        tracker.stop()
+
+    if C.CarbonTracker:
+        parser.print_aggregate(log_dir=C.metrics_dir)
+        tracker.stop()
+
