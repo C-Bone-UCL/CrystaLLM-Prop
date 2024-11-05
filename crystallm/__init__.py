@@ -12,6 +12,7 @@ from ._metrics import (
 from ._model import (
     GPT,
     GPTConfig,
+    GPT_regression,
 )
 
 from ._utils import (

@@ -1,4 +1,4 @@
-out_dir: "finetuned_models/BG_LoRA"  # the path to the directory containing the trained model
+out_dir: "finetuned_models/BG_LoRA_starts"  # the path to the directory containing the trained model
 start: FILE:sampling/prompts/Ti4Ga2Cu2.txt  # the prompt; can also specify a file, use as: "FILE:prompt.txt"
 num_samples: 1  # number of samples to draw
 max_new_tokens: 100  # number of tokens generated in each sample

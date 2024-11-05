@@ -1,50 +1,104 @@
 import subprocess
 import yaml
+import os
 
 # Define LoRA parameter configurations
 lora_configs = [
-    {"LoRA_rank": 16, "LoRA_alpha": 32},
-    {"LoRA_rank": 32, "LoRA_alpha": 32},
-    {"LoRA_rank": 32, "LoRA_alpha": 64},
-    {"LoRA_rank": 8, "LoRA_alpha": 16},
+    {"LoRA_rank": 2, "LoRA_alpha": 4},
 ]
 
-# Path to the configuration file
-config_file_path = "$HOME/CrystaLLM/config/finetune_LoRA_BG.yaml"
+# Parameters to set for all the config files
+configs = [
+    {"learning_rate": 1e-4, "min_lr": 1e-5, 
+     "beta2": 0.995, "weight_decay": 0.15, 
+     "dropout": 0.2, "wandb_project": 'crystallm_CIF_BG_starts'}
+]
 
-# SSH command template
-command_template = """sudo apptainer exec --nv \
---bind /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu \
---bind $HOME/CrystaLLM:/opt/CrystaLLM \
---pwd /opt/CrystaLLM $HOME/CrystaLLM/crystallm_container.sif \
-python3 bin/train.py --config=config/finetune_LoRA_BG.yaml
-"""
+# List of configuration files to cycle through
+config_files = [
+    "config/finetune_LoRA_BG_nico.yaml",
+    "config/finetune_head_BG_nico.yaml",
+    "config/finetune_all_BG_nico.yaml",
+]
 
-def update_config_file(config_path, lora_rank, lora_alpha):
+# Command template with a placeholder for the config file
+command_template = "python3 bin/train.py --config={config_file}"
+
+def update_nested_config(config, updates):
+    """
+    Recursively updates a dictionary (config) with values from another dictionary (updates).
+    """
+    for key, value in updates.items():
+        if isinstance(value, dict) and key in config and isinstance(config[key], dict):
+            update_nested_config(config[key], value)
+        else:
+            config[key] = value
+
+def update_config_file(config_path, **kwargs):
+    # Check if the config file exists
+    if not os.path.exists(config_path):
+        print(f"Configuration file {config_path} not found.")
+        return False
+
+    # Load the existing configuration
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
 
-    # Update the LoRA parameters and wandb_run_name
-    config["LoRA_rank"] = lora_rank
-    config["LoRA_alpha"] = lora_alpha
-    config["wandb_run_name"] = f"BG_large_LoRA_{lora_rank}_{lora_alpha}"
+    # Update the configuration with the new parameters
+    update_nested_config(config, kwargs)
+
+    # Set wandb_run_name based on the config file name without extension
+    config["wandb_run_name"] = os.path.basename(config_path).split(".")[0]
+    run_name = os.path.basename(config_path).split(".")[0]
+
+    print(f"wand run name: {run_name}")
 
     # Save the updated configuration
     with open(config_path, 'w') as file:
         yaml.dump(config, file)
-
-def run_ssh_command(command):
-    # Run the SSH command in the terminal
-    process = subprocess.run(command, shell=True)
-    if process.returncode != 0:
-        print(f"Command failed with exit code {process.returncode}")
-    else:
-        print("Command executed successfully")
-
-# Loop through each configuration and execute the command
-for config in lora_configs:
-    # Update the config file
-    update_config_file(config_file_path, config["LoRA_rank"], config["LoRA_alpha"])
     
-    # Run the command with the updated configuration
-    run_ssh_command(command_template)
+    return True
+
+def run_command(command):
+    print(f"Running command: {command}")  # Log the command for debugging
+    try:
+        # Run without capturing output to see real-time command progress
+        process = subprocess.run(command, shell=True, check=True)
+        print("Command executed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed with exit code {e.returncode}")
+        print(e)  # Print full error details for debugging
+
+
+# Loop through each configuration file
+for config_file in config_files:
+    print(f"Processing configuration file: {config_file}")
+    if "LoRA" in os.path.basename(config_file):
+        # Apply both LoRA and general configurations
+        for config in configs:
+            for lora_config in lora_configs:
+                combined_config = {**lora_config, **config}  # Merge dictionaries
+                print(f"Applying combined LoRA and general config to {config_file}: {combined_config}")
+                
+                # Update the configuration file
+                success = update_config_file(config_file, **combined_config)
+                if not success:
+                    continue  # Skip if config update failed
+
+                # Run the command
+                command = command_template.format(config_file=config_file)
+                print(f"running_command{command}")
+                run_command(command)
+    else:
+        # Apply only general configurations
+        for config in configs:
+            print(f"Applying general config to {config_file}: {config}")
+            
+            # Update the configuration file
+            success = update_config_file(config_file, **config)
+            if not success:
+                continue  # Skip if config update failed
+
+            # Run the command
+            command = command_template.format(config_file=config_file)
+            run_command(command)

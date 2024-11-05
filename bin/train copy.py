@@ -2,10 +2,6 @@
 Adapted from:
 https://github.com/karpathy/nanoGPT/blob/eba36e84649f3c6d840a93092cb779a260544d08/train.py
 """
-"""
-Adapted from:
-https://github.com/karpathy/nanoGPT/blob/eba36e84649f3c6d840a93092cb779a260544d08/train.py
-"""
 
 import os
 import math
@@ -19,7 +15,6 @@ from contextlib import nullcontext
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
-import logging
 import numpy as np
 from sklearn.model_selection import train_test_split
 from omegaconf import OmegaConf
@@ -34,81 +29,82 @@ from crystallm import (
     GPT,
     GPTConfig,
     GPT_regression,
-    _model,
 )
 
 importlib.reload(_model)
 
 @dataclass
 class TrainDefaults:
-    out_dir: str = "out" # the path to the folder where the model checkpoints will be stored
-    ckpt_out_dir: str = "out" # the path to the folder where the model checkpoints will be stored
-    eval_interval: int = 250 # how often to evaluate against the validation set
-    log_interval: int = 1 # how often to print log messages
+    out_dir: str = "out"  # the path to the folder where the model checkpoints will be stored
+    ckpt_out_dir: str = "out"  # the path to the folder where the model checkpoints will be stored (CB: added this)
+    eval_interval: int = 250  # how often to evaluate against the validation set
+    log_interval: int = 1  # how often to print to
     eval_iters_train: int = 200
     eval_iters_val: int = 200
-    eval_only: bool = False # if True, script exits right after the first eval
-    always_save_checkpoint: bool = False # if True, always save a checkpoint after each eval
-    init_from: str = "scratch"  # Options: 'scratch' or 'resume'
+    eval_only: bool = False  # if True, script exits right after the first eval
+    always_save_checkpoint: bool = False  # if True, always save a checkpoint after each eval
+    init_from: str = "scratch"  # 'scratch' or 'resume'
 
-    # WandB logging
-    wandb_log: bool = False
-    wandb_project: str = 'crystallm_BG_CIF'
-    wandb_run_name: str = 'BG_large'
+    # wandb logging
+    wandb_log: bool = False # disabled by default
+    wandb_project:str = 'crystallm_BG_CIF'
+    wandb_run_name:str = 'BG_large'
 
-    # Data parameters
-    dataset: str = "" # the path to the dataset
-    gradient_accumulation_steps: int = 40 # concatenate this many batches before backward/update
-    batch_size: int = 64
-    block_size: int = 2048 # context of up to `block_size` previous character
+    # data
+    dataset: str = ""  # the path to the folder containing the .bin files with encoded tokens
+    gradient_accumulation_steps: int = 40  # used to simulate larger batch sizes
+    batch_size: int = 64  # if gradient_accumulation_steps > 1, this is the micro-batch size
+    block_size: int = 2048  # context of up to `block_size` previous characters
 
-    # Model parameters
+    # model
     n_layer: int = 12
     n_head: int = 12
     n_embd: int = 768
-    dropout: float = 0.0 # prevent overfitting, useful for finetune mainly
-    bias: bool = False
+    dropout: float = 0.0  # for pretraining 0 is good, for finetuning try 0.1+
+    bias: bool = False  # do we use bias inside LayerNorm and Linear layers?
 
-    # Optimizer parameters
-    learning_rate: float = 6e-4
-    max_iters: int = 600000 # total number of iterations for training
+    # AdamW optimizer
+    learning_rate: float = 6e-4  # max learning rate
+    max_iters: int = 600000  # total number of training iterations
     weight_decay: float = 1e-1
     beta1: float = 0.9
-    beta2: float = 0.95
-    grad_clip: float = 1.0
+    beta2: float = 0.95  # make a bit bigger because number of tokens per iter is small
+    grad_clip: float = 1.0  # clip gradients at this value, or disable if == 0.0
 
-    # Learning rate decay settings
-    decay_lr: bool = True
-    warmup_iters: int = 2000
-    lr_decay_iters: int = 600000
-    min_lr: float = 6e-5
+    # learning rate decay settings
+    decay_lr: bool = True  # whether to decay the learning rate
+    warmup_iters: int = 2000  # how many steps to warm up for; not super necessary potentially
+    lr_decay_iters: int = 600000  # should be ~= max_iters per Chinchilla
+    min_lr: float = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 
-    # System settings
-    device: str = "cuda" # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-    dtype: str = "bfloat16" # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
-    compile: bool = True
+    # system
+    device: str = "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+    dtype: str = "bfloat16"  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
+    compile: bool = True  # use PyTorch 2.0 to compile the model to be faster
     underrep_p: float = 0.0
-    validate: bool = False # whether to evaluate the model using the validation set
+    validate: bool = False  # whether to evaluate the model using the validation set
 
-    # Logging metrics
-    codecarbon: bool = False # if True, log emissions to CodeCarbon
-    tracker_project: str = "crystallm"
-    metrics_dir: str = "comp_metrics/"
+    # log metrics
+    codecarbon: bool = False  # if True, log emissions to CodeCarbon
+    tracker_project: str = "crystallm"  # the name of the project in the CodeCarbon dashboard
+    metrics_dir: str = "comp_metrics/"  # the path to the folder where the metrics will be stored
+    CarbonTracker: bool = False  # if True, log emissions to CarbonTracker
 
-    # LoRA parameters
-    LoRA_rank: int = 16
-    LoRA_alpha: int = 32
+    # LoRA metrics
+    LoRA_rank: int = "16"
+    LoRA_alpha: int = "32"
 
-    # Finetuning method
-    finetune_method: str = 'finetune_all'  # Options: 'finetune_head', 'finetune_all', 'LoRA'
-    adaptation: str = "base" # Options: 'base', 'regression'
+    # finetune argument (CB: added this)
+    finetune_method: str = 'finetune_all'  # finetune the model on the dataset (CB: added this) (ex: 'finetune_head', 'finetune_all', 'LoRA')
+    adaptation: str = "base"
 
-    # Sanity check
-    sanity_check: bool = False # if True, print parameter changes after update
+    # sanity check
+    sanity_check: bool = False  # if True, print parameter changes after update (CB: added this)
 
-    # Train-test split for regression adaptation
+    # train-test split for regression adaptation
     test_size: float = 0.05
     val_size: float = 0.05
+
 
 def read_start_indices(
     max_start_index: int,
@@ -116,6 +112,7 @@ def read_start_indices(
     starts_fname: str,
     on_condition: bool = True,
     required: bool = False,
+    # CB: added this (previoously was ') -> Union[torch.Tensor, None]:')
 ) -> torch.Tensor | None:
     start_indices = None
     starts_path = os.path.join(data_dir, starts_fname)
@@ -124,19 +121,19 @@ def read_start_indices(
             print(f"Reading start indices from {starts_path}...")
             with open(starts_path, "rb") as f:
                 start_indices = torch.tensor(pickle.load(f))  # should be sorted
-            # Remove indices that would result in out-of-bounds sequences
+            # remove indices that would result in out-of-bounds sequences
             start_indices = start_indices[start_indices <= max_start_index]
         elif required:
-            raise FileNotFoundError(f"Expected to find a file in dataset dir named '{starts_fname}'")
+            raise Exception(f"Expected to find a file in dataset dir named '{starts_fname}'")
     return start_indices
 
 if __name__ == "__main__":
-    # Load configuration
     C = parse_config(TrainDefaults)
+
     print("Using configuration:")
     print(OmegaConf.to_yaml(C))
 
-    # CodeCarbon tracker
+    # CodeCarbon tracker (CB: added this)
     if C.codecarbon:
         # make sure metrics_dir/wandb_project exists
         output_directory=f'{C.metrics_dir}/{C.wandb_project}'
@@ -149,7 +146,9 @@ if __name__ == "__main__":
         )
         tracker.start()
 
-    # make the directory to store model ckpt if from scratch, or make sure it exists to resume
+    if C.CarbonTracker:
+        tracker = CarbonTracker(epochs=C.max_iters, log_dir=C.metrics_dir)
+
     os.makedirs(C.out_dir, exist_ok=True)
     if C.init_from == "scratch":
         print(f"Creating {C.out_dir}...")
@@ -159,7 +158,6 @@ if __name__ == "__main__":
         else:
             print(f"Resuming from {C.out_dir}...")
 
-    # set the random seed, device and data type
     torch.manual_seed(1337)
     torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
     torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
@@ -168,9 +166,8 @@ if __name__ == "__main__":
     ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[C.dtype]
     ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
-    # Load the dataset
     if not C.dataset:
-        raise ValueError("The 'dataset' option is required and cannot be empty")
+        raise Exception("The 'dataset' option is required and cannot be empty")
 
     if C.adaptation == "base":
         train_data = np.memmap(os.path.join(C.dataset, "train.bin"), dtype=np.uint16, mode="r")
@@ -199,6 +196,10 @@ if __name__ == "__main__":
 
     elif C.adaptation == "regression":
         # Load the DataFrame
+        if not C.dataset:
+            raise Exception("The 'dataset' option is required and cannot be empty for regression adaptation")
+
+        # Load the deduplicated DataFrame
         with gzip.open(C.dataset, 'rb') as f:
             df = pickle.load(f)
 
@@ -212,35 +213,40 @@ if __name__ == "__main__":
             def __init__(self, dataframe, block_size):
                 self.data = dataframe.reset_index(drop=True)
                 self.block_size = block_size
+                self.vocab_size = None  # Will be set later
 
             def __len__(self):
                 return len(self.data)
 
             def __getitem__(self, idx):
                 tokens = self.data.loc[idx, 'CIFs_tokenized']
+                # Convert tokens to token IDs
+                # Assuming tokens are already token IDs
                 x = tokens[:self.block_size]
                 # Pad or truncate x to block_size
-                x = x + [0] * (self.block_size - len(x)) if len(x) < self.block_size else x[:self.block_size]
+                if len(x) < self.block_size:
+                    x = x + [0] * (self.block_size - len(x))
+                else:
+                    x = x[:self.block_size]
                 x = torch.tensor(x, dtype=torch.long)
-                y = torch.tensor(self.data.loc[idx, 'Bandgap (eV)'], dtype=torch.float32)
+                if 'Bandgap (eV)' in self.data.columns:
+                    y = torch.tensor(self.data.loc[idx, 'Bandgap (eV)'], dtype=torch.float32)
+                else:
+                    raise KeyError("Column 'Bandgap (eV)' not found in the DataFrame")   
                 return x, y
 
         train_dataset = CIFRegressionDataset(train_df, C.block_size)
         val_dataset = CIFRegressionDataset(val_df, C.block_size)
-        test_dataset = CIFRegressionDataset(test_df, C.block_size)
-
-        # save the test dataset by going to one level above the dataset directory and saving it
-        test_out_dir = os.path.dirname(C.dataset)
-        test_out_path = os.path.join(test_out_dir, "test_dataset.pkl.gz")
-        # Save the test dataset gzipping it
-        with gzip.open(test_out_path, 'wb') as f:
-            pickle.dump(test_df, f)
-        print(f"Saved test dataset to {test_out_path}")
 
         # Determine vocab_size from the CIFs_tokenized column
-        all_tokens = set(token for tokens in df['CIFs_tokenized'] for token in tokens)
-        vocab_size = max(len(all_tokens), 371)
-        print(f"Found {len(all_tokens)} unique tokens in the dataset (using vocab_size = {vocab_size})")
+        all_tokens = set()
+        for tokens in df['CIFs_tokenized']:
+            all_tokens.update(tokens)
+            
+        print(f"Found {len(all_tokens)} unique tokens in the dataset - if under 371 will default to 371")
+        vocab_size = len(all_tokens)
+        # Save vocab_size for later use
+        train_dataset.vocab_size = vocab_size if vocab_size >=371 else 371
 
         # Create DataLoaders
         train_loader = DataLoader(train_dataset, batch_size=C.batch_size, shuffle=True)
@@ -249,39 +255,48 @@ if __name__ == "__main__":
 
     def get_batch(split):
         if C.adaptation == 'base':
+            # Original get_batch function
             data = train_data if split == "train" else val_data
 
             ix = torch.randint(len(data) - C.block_size, (C.batch_size,))
             if split == "train":
-                if C.underrep_p > 0 and np.random.rand() < C.underrep_p:
+                if C.underrep_p is not None and np.random.random() < C.underrep_p:
                     ix = cif_start_indices_underrep[torch.randperm(len(cif_start_indices_underrep))[:C.batch_size]]
                 elif cif_start_indices is not None:
                     ix = cif_start_indices[torch.randperm(len(cif_start_indices))[:C.batch_size]]
             elif cif_start_indices_val is not None:
                 ix = cif_start_indices_val[torch.randperm(len(cif_start_indices_val))[:C.batch_size]]
 
-            x = torch.stack([torch.from_numpy(data[i:i + C.block_size].astype(np.int64)) for i in ix])
-            y = torch.stack([torch.from_numpy(data[i + 1:i + 1 + C.block_size].astype(np.int64)) for i in ix])
+            x = torch.stack([torch.from_numpy((data[i:i + C.block_size]).astype(np.int64)) for i in ix])
+            y = torch.stack([torch.from_numpy((data[i + 1:i + 1 + C.block_size]).astype(np.int64)) for i in ix])
 
+            if device_type == "cuda":
+                # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+                x, y = x.pin_memory().to(C.device, non_blocking=True), y.pin_memory().to(C.device, non_blocking=True)
+            else:
+                x, y = x.to(C.device), y.to(C.device)
+            return x, y
         elif C.adaptation == 'regression':
+            # Fetch batch from DataLoader
             loader = train_loader if split == 'train' else val_loader
             try:
-                x, y = next(loader_iter[split])
-            except (KeyError, StopIteration):
-                loader_iter[split] = iter(loader)
-                x, y = next(loader_iter[split])
+                batch = next(loader.iter)
+            except AttributeError:
+                loader.iter = iter(loader)
+                batch = next(loader.iter)
+            except StopIteration:
+                loader.iter = iter(loader)
+                batch = next(loader.iter)
 
-        if device_type == "cuda":
-            x = x.pin_memory().to(C.device, non_blocking=True)
-            y = y.pin_memory().to(C.device, non_blocking=True)
-        else:
-            x = x.to(C.device)
-            y = y.to(C.device)
+            x, y = batch
+            if device_type == "cuda":
+                x, y = x.pin_memory().to(C.device, non_blocking=True), y.pin_memory().to(C.device, non_blocking=True)
+            else:
+                x, y = x.to(C.device), y.to(C.device)
+            return x, y
 
-        return x, y
-
-    # Initialize iterators for loaders
-    loader_iter = {}
+    iter_num = 0
+    best_val_loss = 1e9
 
     # Determine vocab_size
     if C.adaptation == 'base':
@@ -293,85 +308,91 @@ if __name__ == "__main__":
             meta_vocab_size = meta["vocab_size"]
             print(f"Found vocab_size = {meta_vocab_size} (inside {meta_path})")
     elif C.adaptation == 'regression':
-        meta_vocab_size = vocab_size
-        print(f"Using vocab_size = {meta_vocab_size} for regression adaptation")
+        meta_vocab_size = train_dataset.vocab_size if train_dataset.vocab_size >= 371 else 371
 
-    # Initialize model arguments
-    model_args = dict(
-        n_layer=C.n_layer,
-        n_head=C.n_head,
-        n_embd=C.n_embd,
-        block_size=C.block_size,
-        bias=C.bias,
-        vocab_size=meta_vocab_size or 371,
-        dropout=C.dropout,
-    )
-
+    model_args = dict(n_layer=C.n_layer, n_head=C.n_head, n_embd=C.n_embd, block_size=C.block_size,
+                      bias=C.bias, vocab_size=None, dropout=C.dropout)
     if C.init_from == "scratch":
-        print("Initializing a new model from scratch with a vocab size of 371...")
+        print("Initializing a new model from scratch...")
+        if meta_vocab_size is None:
+            print("Defaulting to vocab_size of 371...")
         model_args["vocab_size"] = meta_vocab_size if meta_vocab_size is not None else 371
         gptconf = GPTConfig(**model_args)
-        model = GPT(gptconf) if C.adaptation == 'base' else GPT_regression(gptconf) if C.adaptation == 'regression' else None
 
-    elif C.init_from == "resume":
+    if C.init_from == "resume":
+        # Load checkpoint
         print(f"Resuming training from {C.out_dir}...")
         ckpt_path = os.path.join(C.out_dir, "ckpt.pt")
         checkpoint = torch.load(ckpt_path, map_location=C.device)
         checkpoint_model_args = checkpoint["model_args"]
-
+        
         # Update model arguments based on checkpoint
-        model_args.update(checkpoint_model_args)
+        for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
+            model_args[k] = checkpoint_model_args[k]
+        
         model_args["finetune_method"] = C.finetune_method
         model_args["sanity_check"] = C.sanity_check
         gptconf = GPTConfig(**model_args)
-        model = GPT(gptconf) if C.adaptation == 'base' else GPT_regression(gptconf) if C.adaptation == 'regression' else None
 
-        # Load state_dict and adjust as needed then remove unwanted prefixes
+        if C.adaptation == 'base':
+            model = GPT(gptconf)
+        elif C.adaptation == 'regression':
+            model = GPT_regression(gptconf)
+
+        # Load state_dict and adjust as needed
         state_dict = checkpoint["model"]
-        state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
-
+        unwanted_prefix = "_orig_mod."
+        for k, v in list(state_dict.items()):
+            if k.startswith(unwanted_prefix):
+                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+        
         if C.adaptation == 'regression':
-            # Remove outdated 'lm_head' keys
-            state_dict = {k: v for k, v in state_dict.items() if not k.startswith("lm_head")}
-            print("Removed outdated 'lm_head' keys from state_dict.")
+            # Step 1: Remove any existing lm_head layer weights in the checkpoint's state_dict
+            lm_head_keys = [key for key in state_dict if key.startswith("lm_head")]
+            for key in lm_head_keys:
+                del state_dict[key]
+                print(f"Removed outdated key: {key}")
 
         # Load the state_dict with strict=False to ignore missing keys
         model.load_state_dict(state_dict, strict=False)
 
-        # Check for vocabulary size mismatch and resize if necessary
-        checkpoint_vocab_size = checkpoint_model_args.get("vocab_size")
-        if checkpoint_vocab_size <= meta_vocab_size:
-            print(f"Vocabulary size mismatch: checkpoint has {checkpoint_vocab_size}, dataset has {meta_vocab_size}")
-            model.resize_token_embeddings(meta_vocab_size)
-            model.transformer.wte.weight.grad = None  # Clear gradients for resized embeddings
-        elif checkpoint_vocab_size > meta_vocab_size:
-            print(f"Vocabulary size mismatch: checkpoint has {checkpoint_vocab_size}, dataset has {meta_vocab_size}")
-            raise ValueError("the new dataset has a smaller vocab size than the checkpoint which causes tensor errors")
+        # Check for vocabulary size mismatch and resize if necessary (CB: added this)
+        checkpoint_vocab_size = checkpoint_model_args.get("vocab_size", None)
+        if checkpoint_vocab_size is not None and meta_vocab_size is not None:
+            if checkpoint_vocab_size != meta_vocab_size:
+                print(f"Vocabulary size mismatch detected: checkpoint has {checkpoint_vocab_size}, dataset has {meta_vocab_size}")
+                print(f"Resizing token embeddings from {checkpoint_vocab_size} to {meta_vocab_size}")
+                model.resize_token_embeddings(meta_vocab_size)
+                model.transformer.wte.weight.grad = None  # Clear gradients for resized embeddings
 
         iter_num = 0
-        best_val_loss = checkpoint.get("best_val_loss", 1e9)
+        best_val_loss = checkpoint["best_val_loss"]
 
         if C.finetune_method == 'LoRA':
+            # Replace linear layers with LoRA layers (CB: added this)
             print("Replacing linear layers with LoRA layers")
             model.replace_linear_with_lora(rank=C.LoRA_rank, alpha=C.LoRA_alpha)
-    else:
-        raise ValueError(f"Unknown init_from value: {C.init_from}")
 
-
-    # crop down the model block size to reduce context if desired, using model surgery
+    # crop down the model block size if desired, using model surgery
     if C.block_size < model.config.block_size:
         model.crop_block_size(C.block_size)
         model_args["block_size"] = C.block_size  # so that the checkpoint will have the right value
-    # move the model to the correct device
+
     model.to(C.device)
+
     # initialize a GradScaler; if enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(C.dtype == "float16"))
 
-    # Finetuning methods
+    # Finetuning methods (CB: added this)
     if C.init_from == "resume" and C.finetune_method == 'finetune_head':
         print("Finetuning head only: Freezing transformer layers")
         for param in model.transformer.parameters():
             param.requires_grad = False
+        # Ensure both tied weights are set correctly by going through the bits of lm_head sequential and setting the requires_grad flag
+        for name, param in model.lm_head.named_parameters():
+            if 'lm_head' in name:
+                param.requires_grad = True
+                print(f"Setting requires_grad for {name}")
         model.transformer.wte.weight.requires_grad = True
 
     if C.init_from == "resume" and C.finetune_method == 'finetune_all':
@@ -415,27 +436,22 @@ if __name__ == "__main__":
         # If all parameters and shapes match
         return True
 
-    # Optimizer setup - we use Adam with weight decay
+    # optimizer
     optimizer = model.configure_optimizers(C.weight_decay, C.learning_rate, (C.beta1, C.beta2))
+    model_structure_unmodified = is_model_structure_unmodified(model, checkpoint)
 
-    # Load optimizer state from checkpoint if model structure is unmodified, otherwise reset optimizer
-    if C.init_from == "resume":
-        model_structure_unmodified = is_model_structure_unmodified(model, checkpoint)
-        if model_structure_unmodified:
-            print("Loading optimizer state from checkpoint...")
-            optimizer.load_state_dict(checkpoint["optimizer"])
-        else:
-            print("Model structure modified; resetting optimizer.")
+    # Initialize or load optimizer
+    if C.init_from == "resume" and model_structure_unmodified:
+        optimizer.load_state_dict(checkpoint["optimizer"])
     else:
-        print("Initializing optimizer from scratch.")
+        print("Model structure modified; resetting optimizer.")
+        optimizer = model.configure_optimizers(weight_decay=C.weight_decay, learning_rate=C.learning_rate, betas=(C.beta1, C.beta2))
 
-    # Compile the model if desired
     if C.compile:
         print("Compiling the model (takes a ~minute)...")
         unoptimized_model = model
         model = torch.compile(model)  # requires PyTorch 2.0
 
-    # Print a summary of trainable versus frozen parameters
     if C.init_from == "resume" and C.finetune_method == 'LoRA':
         print("Setting requires_grad for LoRA parameters")
         for name, param in model.named_parameters():
@@ -458,22 +474,13 @@ if __name__ == "__main__":
                 print(f"Trainable: {name}")
             else:
                 print(f"Frozen: {name}")
-        # check in for name, param in model.lm_head.named_parameters(): if 'lm_head' in name:
-        if C.adaptation == 'regression':
+            # check in for name, param in model.lm_head.named_parameters(): if 'lm_head' in name:
             for name, param in model.lm_head.named_parameters():
                 if 'lm_head' in name:
                     if param.requires_grad:
                         print(f"Trainable: {name}")
                     else:
                         print(f"Frozen: {name}")
-        elif C.adaptation == 'base' and C.finetune_method != 'LoRA':
-            # check if self.lm_head.weight.requires_grad:
-            if model.lm_head.weight.requires_grad:
-                print("Trainable: _orig_mod.lm_head.weight")
-            else:
-                print("Frozen: _orig_mod.lm_head.weight")
-        print("=============================================")
-            
 
     # helps estimate an arbitrarily accurate loss over either split using many batches
     @torch.no_grad()
@@ -512,43 +519,54 @@ if __name__ == "__main__":
         wandb.init(project=C.wandb_project, name=C.wandb_run_name + str(time.time()), config=dict(C))
         config = OmegaConf.to_container(C)
 
-    # Training loop
+    # training loop
     X, Y = get_batch("train")
     t0 = time.time()
-    local_iter_num = 0
+    local_iter_num = 0  # number of iterations in the lifetime of this process
     running_mfu = -1.0
 
+    # Dictionary to store parameter states before update (CB: added this)
     if C.sanity_check:
         # Save parameters before the update (for sanity check)
-        param_updates = {name: param.clone().detach() for name, param in model.named_parameters() if param.requires_grad}
+        if iter_num == 0:
+            param_updates = {}
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    # Remove '_orig_mod.' prefix if it exists when saving
+                    name_without_prefix = name.replace('_orig_mod.', '')
+                    param_updates[name_without_prefix] = param.clone().detach()
+
+    print("Warning: torch._inductor.utils warnings are suppressed")
 
     if C.validate:
-        # Load the checkpoint from the output directory
+        # Load checkpoint from ckpt_out_dir if it exists (CB: added this)
+        # make sure the directory exists
         os.makedirs(C.ckpt_out_dir, exist_ok=True)
         ckpt_out_path = os.path.join(C.ckpt_out_dir, "ckpt.pt")
         if os.path.exists(ckpt_out_path):
             checkpoint_out = torch.load(ckpt_out_path, map_location=C.device)
-            best_val_loss_out = checkpoint_out.get("best_val_loss", 1e9)
-            print(f'Best val loss from checkpoint: {best_val_loss_out}')
+            best_val_loss_out = checkpoint_out["best_val_loss"]
+            print(f'best val loss found in ckpt_out_dir: {best_val_loss_out}')
         else:
             best_val_loss_out = 1e9
-            print(f'No checkpoint found at {ckpt_out_path}, so best_val_loss_out is set to {best_val_loss_out}')
 
-    print("Warning: torch._inductor.utils warnings are suppressed")
     while True:
-        # Suppress warnings from torch._inductor.utils
+        if C.CarbonTracker:
+            tracker.epoch_start()
+
+        # Suppress warnings from torch._inductor.utils (CB: Added this)
         logging.getLogger("torch._inductor.utils").setLevel(logging.ERROR)
 
-        # Determine and set the learning rate for this iteration
+        # determine and set the learning rate for this iteration
         lr = get_lr(iter_num) if C.decay_lr else C.learning_rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
-        # Evaluate and save checkpoints
+        # evaluate the loss on train/val sets and write checkpoints
         if iter_num % C.eval_interval == 0:
             if C.validate:
                 losses = estimate_loss()
-                print(f"Step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+                print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
                 if C.wandb_log:
                     wandb.log({
                         "iter": iter_num,
@@ -556,9 +574,10 @@ if __name__ == "__main__":
                         "val_loss": losses["val"],
                         "lr": lr,
                     })
-                if losses["val"] < best_val_loss_out or losses["val"] < best_val_loss:
-                    best_val_loss = losses["val"]
-                    # Save the checkpoint
+            if (C.validate and losses["val"] < best_val_loss) or (C.validate and losses["val"] < best_val_loss_out) or C.always_save_checkpoint:
+                best_val_loss = losses["val"] if C.validate else 0.
+                if iter_num > 0:
+                    model_args['vocab_size'] = model.config.new_vocab_size
                     checkpoint = {
                         "model": model.state_dict(),
                         "optimizer": optimizer.state_dict(),
@@ -567,68 +586,78 @@ if __name__ == "__main__":
                         "best_val_loss": best_val_loss,
                         "config": dict(C),
                     }
-                    checkpoint_path = os.path.join(C.ckpt_out_dir, "ckpt.pt")
+                    # save the checkpoint (CB: added this to handle ckpt out paths)
+                    checkpoint_path = os.path.join(C.ckpt_out_dir, "ckpt.pt") if C.ckpt_out_dir else os.path.join(C.out_dir, "ckpt.pt")
+                    #make sure the directory exists
                     os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-                    print(f"Saving checkpoint to {checkpoint_path}...")
+                    print(f"saving checkpoint to {checkpoint_path}...")
                     torch.save(checkpoint, checkpoint_path)
-            elif C.always_save_checkpoint:
-                # Save checkpoint without validation
-                checkpoint = {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "model_args": model_args,
-                    "iter_num": iter_num,
-                    "best_val_loss": best_val_loss,
-                    "config": dict(C),
-                }
-                checkpoint_path = os.path.join(C.ckpt_out_dir, "ckpt.pt")
-                os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
-                print(f"Saving checkpoint to {checkpoint_path}...")
-                torch.save(checkpoint, checkpoint_path)
-
         if iter_num == 0 and C.eval_only:
             break
 
-        # Training step
-        X, Y = get_batch("train")
+        # forward backward update, with optional gradient accumulation to simulate larger batch size
+        # and using the GradScaler if data type is float16
         for micro_step in range(C.gradient_accumulation_steps):
             with ctx:
                 logits, loss = model(X, Y)
-            # Immediately fetch next batch
+            # immediately async prefetch next batch while model is doing the forward pass on the GPU
             X, Y = get_batch("train")
-            # Backward pass with gradient scaling if using fp16
+            # backward pass, with gradient scaling if training in fp16
             scaler.scale(loss).backward()
-
-        # Gradient clipping
+        # clip the gradient
         if C.grad_clip != 0.0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), C.grad_clip)
-
-        # Optimizer step
+        # step the optimizer and scaler if training in fp16
         scaler.step(optimizer)
         scaler.update()
+
+        if C.sanity_check:
+            # After optimizer step, print parameter differences (sanity check) (CB: added this)
+            if iter_num == 0:
+                print("===== Sanity Check: Parameter Changes After Update =====")
+                for name, param in model.named_parameters():
+                    if param.requires_grad:
+                        # Remove '_orig_mod.' prefix to match saved names
+                        name_without_prefix = name.replace('_orig_mod.', '')
+
+                        if name_without_prefix in param_updates:
+                            old_param = param_updates[name_without_prefix]
+                            update = param - old_param
+                            update_norm = update.norm().item()
+                            print(f"Parameter: {name}, Update Norm: {update_norm}")
+                        else:
+                            print(f"Warning: Parameter '{name}' not found in saved param_updates. Skipping.")
+                print("=========================================================")
+
+        # flush the gradients as soon as we can, no need for this memory anymore
         optimizer.zero_grad(set_to_none=True)
 
-        # Logging
+        # timing and logging
         t1 = time.time()
         dt = t1 - t0
         t0 = t1
         if iter_num % C.log_interval == 0:
-            lossf = loss.item()
-            if local_iter_num >= 5:
+            lossf = loss.item()  # loss as float. note: this is a CPU-GPU sync point
+            if local_iter_num >= 5:  # let the training loop settle a bit
                 mfu = model.estimate_mfu(C.batch_size * C.gradient_accumulation_steps, dt)
                 running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
-            print(f"Iter {iter_num}: train loss {lossf:.4f}, time {dt * 1000:.2f}ms, mfu {running_mfu * 100:.2f}%")
-
+            print(f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, mfu {running_mfu * 100:.2f}%")
         iter_num += 1
         local_iter_num += 1
 
+        if C.CarbonTracker:
+            tracker.epoch_end()
+
+        # termination conditions
         if iter_num > C.max_iters:
             break
 
-    # Finalize tracker
+    # CodeCarbon tracker (CB: added this)
     if C.codecarbon:
         tracker.stop()
 
-
+    if C.CarbonTracker:
+        parser.print_aggregate(log_dir=C.metrics_dir)
+        tracker.stop()
 

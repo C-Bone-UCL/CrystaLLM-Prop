@@ -180,4 +180,6 @@ compressed_datasets_models/
 finetuned_models/
 wandb/
 cif.txt
-
+model_ckpts/
+true_vs_predicted_bandgap.png
+CIF_BG_proj/

@@ -1,9 +1,10 @@
 # directories and checkpoints
-out_dir: "pretrained_models/large_model_untouched" # path to model ckpt to train on
-dataset: "CIF_BG_proj/BG_large_tokens"
+out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
+dataset: "CIF_BG_proj/table_MP_500_tokens.pkl.gz"
 init_from: "resume"
 finetune_method : "finetune_head"
-ckpt_out_dir: "finetuned_models/BG_head_test"  # the path to the directory to save the checkpoints
+ckpt_out_dir: "model_ckpts/regression_models/BG_head_test"  # the path to the directory to save the checkpoints
+adaptation: "regression"  # the type of adaptation to perform
 
 # evaluation frequency
 always_save_checkpoint: False
@@ -20,8 +21,8 @@ batch_size: 4
 block_size: 1024  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 12
-n_head: 12
+n_layer: 16
+n_head: 16
 n_embd: 1024
 dropout: 0.1
 
@@ -29,17 +30,16 @@ dropout: 0.1
 codecarbon: False  # if True, log emissions to CodeCarbon
 tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
-CarbonTracker: False  # if True, log emissions to CarbonTracker
 
 #wandb
-wandb_log: True # disabled by default
-wandb_project: 'crystallm_CIF_BG_tests'
-wandb_run_name: 'BG_large_head'
+wandb_log: False # disabled by default
+wandb_project: 'crystallm_regr_BG_tests'
+wandb_run_name: 'BG_head'
 
 # learning rate and optimizer
 learning_rate: 1e-4
 decay_lr: True
-lr_decay_iters: 50  # make equal to max_iters usually
+lr_decay_iters: 4  # make equal to max_iters usually
 min_lr: 1e-5  # learning_rate / 10 usually
 beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
