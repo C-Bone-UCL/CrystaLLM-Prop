@@ -4,6 +4,7 @@ dataset: "CIF_BG_proj/BG_large_tokens"
 init_from: "resume"
 finetune_method : "finetune_head"
 ckpt_out_dir: "model_ckpts/finetuned_models/BG_head_test"  # the path to the directory to save the checkpoints
+adaptation: "cifextd"
 
 # evaluation frequency
 always_save_checkpoint: False
@@ -31,7 +32,7 @@ tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashbo
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
 
 #wandb
-wandb_log: True # disabled by default
+wandb_log: False # disabled by default
 wandb_project: 'crystallm_CIF_BG_tests'
 wandb_run_name: 'BG_large_head'
 

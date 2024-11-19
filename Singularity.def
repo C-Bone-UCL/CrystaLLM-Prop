@@ -1,21 +1,17 @@
 Bootstrap: docker
-From: continuumio/miniconda3  # Keeping your original base image
+From: continuumio/miniconda3
 
 %files
     /home/cyprien/CrystaLLM /opt
 
 %post
-    # Update package list and add 32-bit architecture support
-    apt-get update
-    dpkg --add-architecture i386
-    apt-get update
-
     # Install build-essential and other system dependencies
-    apt-get install -y build-essential gcc-multilib rpm libncurses5:i386 libz1:i386
+    apt update
+    apt install -y build-essential 
 
     # Activate Conda and install the specific GCC version
     . /opt/conda/etc/profile.d/conda.sh
-    conda install -n base -c conda-forge gcc=9  # Install GCC 9 via Conda
+    conda install -n base -c conda-forge gcc=9
     
     # Create and activate the conda environment
     conda create -n crystallm_env python=3.10 -y

@@ -1,5 +1,5 @@
 # directories and checkpoints
-out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
+out_dir: "model_ckpts/pretrained_models/small_model_untouched" # path to model ckpt to train on
 dataset: "CIF_BG_proj/table_MP_500_tokens.pkl.gz"
 init_from: "resume"
 finetune_method : "finetune_head"
@@ -9,20 +9,20 @@ adaptation: "regression"  # the type of adaptation to perform
 # evaluation frequency
 always_save_checkpoint: False
 validate: True
-eval_interval: 5
+eval_interval: 2
 eval_iters_train: 2
 eval_iters_val: 2
 log_interval: 2  # how often to print to the console (1 = every iteration)
-sanity_check: True  # if True, prints resizing of tensor details
+sanity_check: False  # if True, prints resizing of tensor details
 
 # batch and block sizes
-gradient_accumulation_steps: 4
-batch_size: 4
-block_size: 1024  # context of up to `block_size` previous characters
+gradient_accumulation_steps: 2
+batch_size: 1
+block_size: 2048  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 16
-n_head: 16
+n_layer: 8
+n_head: 8
 n_embd: 1024
 dropout: 0.1
 
@@ -39,13 +39,16 @@ wandb_run_name: 'BG_head'
 # learning rate and optimizer
 learning_rate: 1e-4
 decay_lr: True
-lr_decay_iters: 4  # make equal to max_iters usually
+lr_decay_iters: 3  # make equal to max_iters usually
 min_lr: 1e-5  # learning_rate / 10 usually
 beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
 # training iterations
-max_iters: 4
+max_iters: 3
 warmup_iters: 100  # not super necessary potentially
+
+hp_search: true
+n_trials_hp_search: 5
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only

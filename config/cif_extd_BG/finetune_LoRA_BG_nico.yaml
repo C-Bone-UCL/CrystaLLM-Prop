@@ -2,51 +2,54 @@
 out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
 dataset: "CIF_BG_proj/BG_large_tokens"
 init_from: "resume"
-finetune_method : "LoRA"
+finetune_method: "LoRA"
 ckpt_out_dir: "model_ckpts/finetuned_models/BG_LoRA"  # the path to the directory to save the checkpoints
+adaptation: "cifextd"  # the type of adaptation to perform
 
 # evaluation frequency
-always_save_checkpoint: False
-validate: True
-eval_interval: 50
-eval_iters_train: 50
-eval_iters_val: 50
-log_interval: 10  # how often to print to the console (1 = every iteration)
-sanity_check: False  # if True, prints details of parameter freezing and tensor size changes
+always_save_checkpoint: false
+validate: true
+eval_interval: 100
+eval_iters_train: 100
+eval_iters_val: 100
+log_interval: 50  # how often to print to the console (1 = every iteration)
+sanity_check: false  # if True, prints resizing of tensor details
 
 # batch and block sizes
-gradient_accumulation_steps: 8
+gradient_accumulation_steps: 4
 batch_size: 8
 block_size: 2048  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 14
-n_head: 14
+n_layer: 16
+n_head: 16
 n_embd: 1024
-dropout: 0.2
+dropout: 0.1
 
 # trackers
-codecarbon: True  # if True, log emissions to CodeCarbon
+codecarbon: true  # if True, log emissions to CodeCarbon
 tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
 
 #wandb
-wandb_log: True # disabled by default
-wandb_project: 'crystallm_CIF_BG'
-wandb_run_name: 'BG_large_LoRA'
+wandb_log: true # disabled by default
+wandb_project: 'crystallm_CIF_BG_v2'
+wandb_run_name: 'LoRA_BG_nico'
 
 # learning rate and optimizer
-learning_rate: 1e-5
-decay_lr: True
-min_lr: 1e-6  # learning_rate / 10 usually
-beta2: 0.995  # make a bit bigger because number of tokens per iter is small
-weight_decay: 0.15  # weight decay
+learning_rate: 1e-3
+decay_lr: true
+lr_decay_iters: 3000  # make equal to max_iters usually
+min_lr: 1e-4  # learning_rate / 10 usually
+beta2: 0.995 # make a bit bigger because number of tokens per iter is small
 
 # training iterations
-max_iters: 2500
-lr_decay_iters: 2500  # make equal to max_iters usually
+max_iters: 3000
 warmup_iters: 100  # not super necessary potentially
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only
 # compile: False # do not torch compile the model
+weight_decay: 0.1
+LoRA_rank: 2
+LoRA_alpha: 4

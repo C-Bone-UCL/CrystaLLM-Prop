@@ -10,13 +10,13 @@ from torch import Tensor
 import torch.nn as nn
 from torch.nn import functional as F
 
-from crystallm import CIFTokenizer
+from crystallm import CIFTokenizer, CIFTokenizer_extd
 
 
 @dataclass
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 371  # number of tokens in the vocabulary (CB: updated to 372)
+    vocab_size: int = 371  # number of tokens in the vocabulary (CB: updated to 371)
     new_vocab_size: int = 372  # number of tokens in the new vocabulary (CB: added this)
     n_layer: int = 12
     n_head: int = 12
@@ -29,6 +29,8 @@ class GPTConfig:
     finetune_method: str = 'finetune_all'  # Method for fine-tuning the model (CB: added this)
     sanity_check: bool = False  # Whether to print the parameters that are being decayed (CB: added this)
     latent_dim: int = 256  # Dimension of the latent space for regression (CB: added this)
+    unk_token_id: int = 370
+    max_token_length: int = 4792
 
 class LayerNorm(nn.Module):
 
@@ -160,6 +162,25 @@ class LinearWithLoRA(nn.Module):
 
     def forward(self, x):
         return self.linear(x) + self.lora(x)
+    
+class AttentionPooling(nn.Module):
+    def __init__(self, n_embd, unk_token_id):
+        super().__init__()
+        self.attention_weights = nn.Linear(n_embd, 1)  # Linear layer to compute attention scores
+        self.unk_token_id = unk_token_id  # ID for the <unk> token
+
+    def forward(self, x, idx):
+        # Create a mask for <unk> tokens
+        mask = (idx != self.unk_token_id).float()  # Shape: (b, t), 1 for non-<unk>, 0 for <unk>
+
+        # Compute attention scores
+        attn_scores = self.attention_weights(x).squeeze(-1)  # Shape: (b, t)
+        attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))  # Mask <unk> tokens
+        attn_weights = F.softmax(attn_scores, dim=-1)  # Compute softmax over the sequence length
+
+        # Weighted sum of embeddings
+        x = torch.bmm(attn_weights.unsqueeze(1), x).squeeze(1)  # Shape: (b, n_embd)
+        return x
 
 class GPT(nn.Module):
 
@@ -396,16 +417,21 @@ class GPT_regression(nn.Module):
     def __init__(self, config: GPTConfig):
         super().__init__()
         assert config.vocab_size is not None
-        assert config.block_size is not None
+        assert config.max_token_length is not None
         self.config = config
 
         self.transformer = nn.ModuleDict(dict(
             wte=nn.Embedding(config.vocab_size, config.n_embd),
-            wpe=nn.Embedding(config.block_size, config.n_embd),
+            wpe=nn.Embedding(config.max_token_length, config.n_embd),
             drop=nn.Dropout(config.dropout),
             h=nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f=LayerNorm(config.n_embd, bias=config.bias),
         ))
+
+        # Initialize AttentionPooling with unk_token_id
+        print(f"UNK token ID: {config.unk_token_id}, using it for AttentionPooling")
+        self.attention_pooling = AttentionPooling(config.n_embd, unk_token_id=config.unk_token_id)
+
         self.lm_head = nn.Sequential(
             torch.nn.Linear(config.n_embd, config.latent_dim),
             torch.nn.ReLU(), # ReLU activation function
@@ -445,7 +471,12 @@ class GPT_regression(nn.Module):
     def forward(self, idx, targets=None):
         device = idx.device
         b, t = idx.size()
-        assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
+
+        # Ensure the block size is not exceeded
+        if t > self.config.max_token_length:
+            raise ValueError(f"Sequence length {t} exceeds configured block size {self.config.max_token_length}")
+
+        # assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
         pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0)  # shape (1, t)
 
         # forward the GPT model itself
@@ -455,8 +486,11 @@ class GPT_regression(nn.Module):
         for block in self.transformer.h:
             x = block(x)
 
-        x = self.transformer.ln_f(x)
-        x = x.mean(dim=1)  # Mean pooling over sequence length
+        x = self.transformer.ln_f(x)  # shape (b, t, n_embd)
+
+        # Apply attention pooling to get a single embedding for the entire sequence
+        x = self.attention_pooling(x, idx)  # shape (b, n_embd)
+
         logits = self.lm_head(x)
         
         if targets is not None:
@@ -498,16 +532,33 @@ class GPT_regression(nn.Module):
                 lora_linear = LinearWithLoRA(old_linear, rank, alpha)
                 setattr(parent_module, module_name, lora_linear)
 
-    def crop_block_size(self, block_size: int):
-        # model surgery to decrease the block size if necessary
-        # e.g. we may load the GPT2 pretrained model checkpoint (block size 1024)
-        # but want to use a smaller block size for some smaller, simpler model
-        assert block_size <= self.config.block_size
-        self.config.block_size = block_size
-        self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:block_size])
+    def resize_block(self, max_token_length: int):
+        # Update the block size in the model configuration
+        if max_token_length > self.config.block_size:
+            print(f"Increasing block size from {self.config.block_size} to {max_token_length}.")
+            
+            # Expand the position embeddings if max_token_length is greater
+            old_weights = self.transformer.wpe.weight.data
+            new_weights = torch.zeros(max_token_length, old_weights.size(1)).to(old_weights.device)
+            # Copy the old weights into the new expanded tensor
+            new_weights[:self.config.block_size] = old_weights
+            # Initialize the additional positions with random values
+            torch.nn.init.normal_(new_weights[self.config.block_size:], mean=0.0, std=0.02)
+            self.transformer.wpe.weight = nn.Parameter(new_weights)
+        elif max_token_length < self.config.block_size:
+            print(f"Decreasing block size from {self.config.block_size} to {max_token_length}.")
+            
+            # Crop the position embeddings if max_token_length is smaller
+            self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:max_token_length])
+        
+        # Update the block size in the model configuration
+        self.config.max_token_length = max_token_length
+
+        # Ensure all attention biases are also resized to match the new block size
         for block in self.transformer.h:
             if hasattr(block.attn, 'bias') and block.attn.bias is not None:
-                block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]
+                block.attn.bias = block.attn.bias[:, :, :max_token_length, :max_token_length]
+
     
     def configure_optimizers(self, weight_decay, learning_rate, betas):
         """
@@ -562,7 +613,7 @@ class GPT_regression(nn.Module):
         # see PaLM paper Appendix B as ref: https://arxiv.org/abs/2204.02311
         N = self.get_num_params()
         cfg = self.config
-        L, H, Q, T = cfg.n_layer, cfg.n_head, cfg.n_embd//cfg.n_head, cfg.block_size
+        L, H, Q, T = cfg.n_layer, cfg.n_head, cfg.n_embd//cfg.n_head, cfg.max_token_length
         flops_per_token = 6*N + 12*L*H*Q*T
         flops_per_fwdbwd = flops_per_token * T
         flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter

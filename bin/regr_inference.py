@@ -7,34 +7,37 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
 from omegaconf import OmegaConf
+import numpy as np
 
 from bin.train import TrainDefaults
 from crystallm._model import GPT_regression, GPTConfig
 from crystallm import CIFTokenizer, parse_config
 
 # Configuration
-CHECKPOINT_PATH = 'model_ckpts/regression_models/BG_head_test/ckpt.pt'  #
+CHECKPOINT_PATH = 'model_ckpts/regression_models/BG_all/ckpt.pt'  #
 TEST_DATA_PATH = 'CIF_BG_proj/test_dataset.pkl.gz'
-CONFIG_PATH = 'config/regression_BG/regression_BG_head.yaml' 
+CONFIG_PATH = 'config/regression_BG/regression_BG_all.yaml'
+DATASET =  'CIF_BG_proj/table_MP_500_tokens.pkl.gz'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define the Dataset class
 class CIFRegressionDataset(Dataset):
-    def __init__(self, dataframe, block_size):
+    def __init__(self, dataframe, max_length, unk_token_id):
         self.data = dataframe.reset_index(drop=True)
-        self.block_size = block_size
+        self.max_length = max_length
+        self.unk_token_id = unk_token_id  # ID for the <unk> token
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         tokens = self.data.loc[idx, 'CIFs_tokenized']
-        x = tokens[:self.block_size]
-        # Pad or truncate x to block_size
-        if len(x) < self.block_size:
-            x = x + [0] * (self.block_size - len(x))
-        else:
-            x = x[:self.block_size]
+
+        # Efficiently pad or truncate using numpy
+        x = np.full(self.max_length, self.unk_token_id, dtype=np.int64)  # Initialize with <unk> token ID
+        token_ids = [self.unk_token_id if token == '<unk>' else int(token) for token in tokens]
+        x[:min(len(token_ids), self.max_length)] = token_ids[:self.max_length]
+
         x = torch.tensor(x, dtype=torch.long)
         y = torch.tensor(self.data.loc[idx, 'Bandgap (eV)'], dtype=torch.float32)
         return x, y
@@ -125,6 +128,12 @@ def main():
 
     print(f"Model configuration: {config_dict}")
 
+    with gzip.open(DATASET, 'rb') as f:
+        df = pickle.load(f)
+    # Efficiently calculate the maximum token length using pandas
+    # max_token_length = df['CIFs_tokenized'].str.len().max()
+    max_token_length = 6529
+
     model_args = dict(
         n_layer=config_dict.n_layer,
         n_head=config_dict.n_head,
@@ -133,11 +142,22 @@ def main():
         bias=config_dict.bias,
         vocab_size=371,
         dropout=config_dict.dropout,
+        max_token_length=max_token_length
     )
     config = GPTConfig(**model_args)
 
+    # Instantiate the tokenizer and get the <unk> token ID
+    tokenizer = CIFTokenizer()
+    unk_token_id = tokenizer.token_to_id["<unk>"]
+
+    with gzip.open(DATASET, 'rb') as f:
+        df = pickle.load(f)
+    # Efficiently calculate the maximum token length using pandas
+    # max_token_length = df['CIFs_tokenized'].str.len().max()
+    max_token_length = 6529
+
     # Initialize the Dataset and DataLoader
-    test_dataset = CIFRegressionDataset(test_df, block_size=config_dict.block_size)
+    test_dataset = CIFRegressionDataset(test_df, max_length=max_token_length, unk_token_id=unk_token_id)
     test_loader = DataLoader(test_dataset, batch_size=config_dict.batch_size, shuffle=False)
     print(f"Test DataLoader created with batch size {config_dict.batch_size}.")
 

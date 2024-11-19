@@ -1,5 +1,5 @@
 # directories and checkpoints
-out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
+out_dir: "model_ckpts/pretrained_models/small_model_untouched" # path to model ckpt to train on
 dataset: "CIF_BG_proj/table_MP_500_tokens.pkl.gz"
 init_from: "resume"
 finetune_method : "finetune_all"
@@ -17,12 +17,12 @@ sanity_check: True  # if True, prints resizing of tensor details
 
 # batch and block sizes
 gradient_accumulation_steps: 4
-batch_size: 2
+batch_size: 1
 block_size: 1024  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 12
-n_head: 12
+n_layer: 16
+n_head: 16
 n_embd: 1024
 dropout: 0.1
 

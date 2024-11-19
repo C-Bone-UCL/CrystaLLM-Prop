@@ -9,7 +9,7 @@ try:
 except ImportError:
     import pickle
 
-from crystallm import CIFTokenizer
+from crystallm import CIFTokenizer, CIFTokenizer_extd
 import pandas as pd
 
 
@@ -24,6 +24,8 @@ def progress_listener(queue, n):
 
 def tokenize(chunk_of_cifs, queue=None):
     tokenizer = CIFTokenizer()
+    print("Amount of tokens in tokenizer: ", len(tokenizer._tokens_with_unk))
+    print(tokenizer._tokens_with_unk)
     tokenized = []
     for cif in tqdm(chunk_of_cifs, disable=queue is not None, desc="Tokenizing..."):
         if queue:

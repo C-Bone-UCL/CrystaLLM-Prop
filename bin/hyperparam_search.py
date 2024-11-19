@@ -1,6 +1,10 @@
 import subprocess
-import yaml
 import os
+from ruamel.yaml import YAML
+
+# Initialize ruamel.yaml
+yaml = YAML()
+yaml.preserve_quotes = True  # Preserve quotes if any
 
 # Define LoRA parameter configurations
 lora_configs = [
@@ -9,16 +13,17 @@ lora_configs = [
 
 # Parameters to set for all the config files
 configs = [
-    {"learning_rate": 1e-4, "min_lr": 1e-5, 
-     "beta2": 0.995, "weight_decay": 0.15, 
-     "dropout": 0.2, "wandb_project": 'crystallm_CIF_BG_starts'}
+    {"beta2": 0.995, "weight_decay": 0.1, "dropout": 0.1},
 ]
 
 # List of configuration files to cycle through
 config_files = [
-    "config/finetune_LoRA_BG_nico.yaml",
-    "config/finetune_head_BG_nico.yaml",
-    "config/finetune_all_BG_nico.yaml",
+    "config/cif_extd_BG/finetune_LoRA_BG_nico.yaml",
+    "config/cif_extd_BG/finetune_head_BG_nico.yaml",
+    "config/regression_BG/regression_BG_all_nico.yaml",
+    "config/regression_BG/regression_BG_head_nico.yaml",
+    "config/regression_BG/regression_BG_LoRA_nico.yaml",
+    # "config/finetune_all_BG_nico.yaml",
 ]
 
 # Command template with a placeholder for the config file
@@ -40,9 +45,9 @@ def update_config_file(config_path, **kwargs):
         print(f"Configuration file {config_path} not found.")
         return False
 
-    # Load the existing configuration
+    # Load the existing configuration with ruamel.yaml to preserve structure
     with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
+        config = yaml.load(file)
 
     # Update the configuration with the new parameters
     update_nested_config(config, kwargs)
@@ -53,10 +58,10 @@ def update_config_file(config_path, **kwargs):
 
     print(f"wand run name: {run_name}")
 
-    # Save the updated configuration
+    # Save the updated configuration, preserving comments and order
     with open(config_path, 'w') as file:
         yaml.dump(config, file)
-    
+
     return True
 
 def run_command(command):
@@ -68,7 +73,6 @@ def run_command(command):
     except subprocess.CalledProcessError as e:
         print(f"Command failed with exit code {e.returncode}")
         print(e)  # Print full error details for debugging
-
 
 # Loop through each configuration file
 for config_file in config_files:
@@ -87,7 +91,6 @@ for config_file in config_files:
 
                 # Run the command
                 command = command_template.format(config_file=config_file)
-                print(f"running_command{command}")
                 run_command(command)
     else:
         # Apply only general configurations

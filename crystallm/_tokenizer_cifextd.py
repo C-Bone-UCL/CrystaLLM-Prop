@@ -42,7 +42,7 @@ KEYWORDS = [
     "_cell_angle_alpha",
     "_cell_formula_units_Z",
     "loop_",
-    "data_"
+    "data_",
 ]
 
 EXTENDED_KEYWORDS = [
@@ -53,10 +53,14 @@ EXTENDED_KEYWORDS = [
     "_atom_type_oxidation_number"
 ]
 
+PROPERTY_TOKENS = [
+    "Bandgap_eV"
+]
+
 UNK_TOKEN = "<unk>"
 
 
-class CIFTokenizer:
+class CIFTokenizer_extd:
     def __init__(self):
         self._tokens = list(self.atoms())
         self._tokens.extend(self.digits())
@@ -68,6 +72,8 @@ class CIFTokenizer:
         #  or 'P1' with 'P1_sg' to disambiguate from atom 'P' and number '1'
         space_groups_sg = [sg+"_sg" for sg in space_groups]
         self._tokens.extend(space_groups_sg)
+
+        self._tokens.extend(self.property_tokens())
 
         self._escaped_tokens = [re.escape(token) for token in self._tokens]
         self._escaped_tokens.sort(key=len, reverse=True)
@@ -82,6 +88,8 @@ class CIFTokenizer:
         #  for decoding convenience
         for sg in space_groups_sg:
             self._id_to_token[self.token_to_id[sg]] = sg.replace("_sg", "")
+        
+        print(self._token_to_id)
 
     @staticmethod
     def atoms():
@@ -104,6 +112,10 @@ class CIFTokenizer:
     @staticmethod
     def space_groups():
         return SPACE_GROUPS
+    
+    @staticmethod
+    def property_tokens():
+        return PROPERTY_TOKENS
 
     @property
     def token_to_id(self):
@@ -121,12 +133,38 @@ class CIFTokenizer:
         # decoder: take a list of integers (i.e. encoded tokens), output a string
         return ''.join([self._id_to_token[i] for i in ids])
 
+    # def tokenize_cif(self, cif_string, single_spaces=True):
+    #     # Preprocessing step to replace '_symmetry_space_group_name_H-M Pm'
+    #     #  with '_symmetry_space_group_name_H-M Pm_sg',to disambiguate from atom 'Pm',
+    #     #  or any space group symbol to avoid problematic cases, like 'P1'
+    #     spacegroups = "|".join(SPACE_GROUPS)
+    #     cif_string = re.sub(fr'(_symmetry_space_group_name_H-M *\b({spacegroups}))\n', r'\1_sg\n', cif_string)
+
+    #     # Create a regex pattern by joining the escaped tokens with '|'
+    #     token_pattern = '|'.join(self._escaped_tokens)
+
+    #     # Add a regex pattern to match any sequence of characters separated by whitespace or punctuation
+    #     full_pattern = f'({token_pattern}|\\w+|[\\.,;!?])'
+
+    #     # Tokenize the input string using the regex pattern
+    #     if single_spaces:
+    #         cif_string = re.sub(r'[ \t]+', ' ', cif_string)
+    #     tokens = re.findall(full_pattern, cif_string)
+
+    #     # Replace unrecognized tokens with the unknown_token
+    #     tokens = [token if token in self._tokens else UNK_TOKEN for token in tokens]
+
+    #     return tokens
+    
     def tokenize_cif(self, cif_string, single_spaces=True):
         # Preprocessing step to replace '_symmetry_space_group_name_H-M Pm'
         #  with '_symmetry_space_group_name_H-M Pm_sg',to disambiguate from atom 'Pm',
         #  or any space group symbol to avoid problematic cases, like 'P1'
         spacegroups = "|".join(SPACE_GROUPS)
         cif_string = re.sub(fr'(_symmetry_space_group_name_H-M *\b({spacegroups}))\n', r'\1_sg\n', cif_string)
+
+        # Handle bandgap tokenization
+        cif_string = re.sub(r'(Bandgap_eV: *\d+\.\d+)', r'\1', cif_string)
 
         # Create a regex pattern by joining the escaped tokens with '|'
         token_pattern = '|'.join(self._escaped_tokens)
