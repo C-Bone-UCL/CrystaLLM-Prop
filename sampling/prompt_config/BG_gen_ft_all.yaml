@@ -1,14 +1,13 @@
-out_dir: "finetuned_models/BG_all_starts"  # the path to the directory containing the trained model
-start: FILE:sampling/prompts/Ti4Ga2Cu2.txt  # the prompt; can also specify a file, use as: "FILE:prompt.txt"
+out_dir: "model_ckpts/finetuned_models_excl_0BG/BG_all"  # the path to the directory containing the trained model
 num_samples: 1  # number of samples to draw
-max_new_tokens: 2000  # number of tokens generated in each sample
-temperature: 0.8  # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
+max_new_tokens: 4  # number of tokens generated in each sample
+temperature: 0.7  # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
 top_k: 10  # retain only the top_k most likely tokens, clamp others to have 0 probability
 seed: 1337
 device: "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
 dtype: "bfloat16"  # 'float32' or 'bfloat16' or 'float16'
 compile: False  # use PyTorch 2.0 to compile the model to be faster
 target: console  # where the generated content will be sent; can also be 'file'
-generated_dir: sampling/test_generated_cifs_BG #Directory of Cif files
 token_resize: True  # resize token embeddings to match the checkpoint's vocab size
-dataset: "CIF_BG_proj/BG_large_tokens"  # the path to the directory containing the dataset
+dataset: "CIF_BG_proj/BG_large_tokens_excl_0BG"  # the path to the directory containing the dataset
+pkl_file: "CIF_BG_proj/BG_cifs_process_steps/BG_large_test_excl_0BG.pkl.gz"

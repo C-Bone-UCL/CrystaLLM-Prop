@@ -1,6 +1,6 @@
 # directories and checkpoints
 out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
-dataset: "CIF_BG_proj/BG_large_tokens"
+dataset: "CIF_BG_proj/BG_large_tokens_excl_0BG"
 init_from: "resume"
 finetune_method: "LoRA"
 ckpt_out_dir: "model_ckpts/finetuned_models/BG_LoRA"  # the path to the directory to save the checkpoints
@@ -16,7 +16,7 @@ log_interval: 50  # how often to print to the console (1 = every iteration)
 sanity_check: false  # if True, prints resizing of tensor details
 
 # batch and block sizes
-gradient_accumulation_steps: 4
+gradient_accumulation_steps: 8
 batch_size: 8
 block_size: 2048  # context of up to `block_size` previous characters
 
@@ -33,8 +33,8 @@ metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be 
 
 #wandb
 wandb_log: true # disabled by default
-wandb_project: 'crystallm_CIF_BG_v2'
-wandb_run_name: 'LoRA_BG_nico'
+wandb_project: 'crystallm_CIF_BG_v4'
+wandb_run_name: 'finetune_LoRA_BG_nico'
 
 # learning rate and optimizer
 learning_rate: 1e-3

@@ -1,6 +1,6 @@
 # directories and checkpoints
 out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
-dataset: "CIF_BG_proj/BG_large_tokens"
+dataset: "CIF_BG_proj/BG_large_tokens_excl_0BG"
 init_from: "resume"
 finetune_method: "finetune_head"
 ckpt_out_dir: "model_ckpts/finetuned_models/BG_head"  # the path to the directory to save the checkpoints
@@ -33,7 +33,7 @@ metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be 
 
 #wandb
 wandb_log: true # disabled by default
-wandb_project: 'crystallm_CIF_BG_v2'
+wandb_project: 'crystallm_CIF_BG_v4'
 wandb_run_name: 'finetune_head_BG_nico'
 
 # learning rate and optimizer
@@ -41,7 +41,7 @@ learning_rate: 1e-4
 decay_lr: true
 lr_decay_iters: 3000  # make equal to max_iters usually
 min_lr: 1e-5  # learning_rate / 10 usually
-beta2: 0.99 # make a bit bigger because number of tokens per iter is small
+beta2: 0.995 # make a bit bigger because number of tokens per iter is small
 
 # training iterations
 max_iters: 3000

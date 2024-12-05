@@ -8,17 +8,17 @@ import seaborn as sns
 import yaml
 from omegaconf import OmegaConf
 import numpy as np
+from tqdm import tqdm
 
 from bin.train import TrainDefaults
 from crystallm._model import GPT_regression, GPTConfig
 from crystallm import CIFTokenizer, parse_config
 
 # Configuration
-CHECKPOINT_PATH = 'model_ckpts/regression_models/BG_all/ckpt.pt'  #
+CHECKPOINT_PATH = 'model_ckpts/regression_models/BG_LoRA_test/search_trial_1/ckpt.pt'  #
 TEST_DATA_PATH = 'CIF_BG_proj/test_dataset.pkl.gz'
-CONFIG_PATH = 'config/regression_BG/regression_BG_all.yaml'
-DATASET =  'CIF_BG_proj/table_MP_500_tokens.pkl.gz'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+PLOT_DIR = 'inference_plots/BG_regr_LoRA/'
 
 # Define the Dataset class
 class CIFRegressionDataset(Dataset):
@@ -33,8 +33,7 @@ class CIFRegressionDataset(Dataset):
     def __getitem__(self, idx):
         tokens = self.data.loc[idx, 'CIFs_tokenized']
 
-        # Efficiently pad or truncate using numpy
-        x = np.full(self.max_length, self.unk_token_id, dtype=np.int64)  # Initialize with <unk> token ID
+        x = np.full(self.max_length, self.unk_token_id, dtype=np.int64)
         token_ids = [self.unk_token_id if token == '<unk>' else int(token) for token in tokens]
         x[:min(len(token_ids), self.max_length)] = token_ids[:self.max_length]
 
@@ -48,31 +47,74 @@ def load_test_data(test_data_path):
     print(f"Loaded test dataset with {len(test_df)} samples.")
     return test_df
 
-def initialize_model(checkpoint_path, config):
-    model = GPT_regression(config)
+def initialize_model(checkpoint_path):
     # Load the checkpoint dictionary
     checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
-    # Check if 'model' key exists in the checkpoint
+    
+    # Extract model_args from the checkpoint
+    if 'model_args' in checkpoint:
+        model_args = checkpoint['model_args']
+    else:
+        raise KeyError("Checkpoint does not contain 'model_args' key. Ensure the checkpoint format is correct.")
+    
+    # Extract the configuration from the checkpoint
+    if 'config' in checkpoint:
+        saved_config = checkpoint['config']
+        # Extract LoRA parameters and finetuning method
+        LoRA_rank = saved_config.get('LoRA_rank')
+        LoRA_alpha = saved_config.get('LoRA_alpha')
+        FT_method = saved_config.get('finetune_method')
+    else:
+        raise KeyError("Checkpoint does not contain 'config' key. Ensure the checkpoint format is correct.")
+
+    # Initialize the model configuration
+    config = GPTConfig(**model_args)
+    # Initialize the model
+    model = GPT_regression(config)
+    
+    # Apply LoRA modifications if necessary
+    if FT_method == "LoRA":
+        if LoRA_rank is None or LoRA_alpha is None:
+            raise ValueError("LoRA parameters not found in checkpoint configuration.")
+        model.replace_linear_with_lora(rank=LoRA_rank, alpha=LoRA_alpha)
+
+    # Load the state dict
     if 'model' in checkpoint:
         state_dict = checkpoint['model']
-        # remove _orig_mod. from the keys of the state_dict
+        # Remove '_orig_mod.' from the keys of the state_dict
         state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
     else:
         raise KeyError("Checkpoint does not contain 'model' key. Ensure the checkpoint format is correct.")
-    # Load the state dictionary into the model
-    model.load_state_dict(state_dict)
+    
+    # Adjust the state_dict keys to match the model's parameter names
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if 'linear.linear' in k:
+            new_key = k.replace('linear.linear', 'linear')
+            new_state_dict[new_key] = v
+        else:
+            new_state_dict[k] = v
+
+    print(state_dict.keys())
+    try:
+        # Load the state dict into the model
+        model.load_state_dict(new_state_dict, strict=False)
+        print("Model loaded successfully.")
+    except RuntimeError as e:
+        print(f"Error loading state_dict: {e}")
+
     # Move the model to the specified device and set to evaluation mode
     model.to(DEVICE)
     model.eval()
     print(f"Model loaded from {checkpoint_path} and moved to {DEVICE}.")
     return model
 
-
 def perform_inference(model, test_loader):
     all_preds = []
     all_trues = []
+
     with torch.no_grad():
-        for batch in test_loader:
+         for batch in tqdm(test_loader, desc="Performing Inference", unit="batch"):
             inputs, targets = batch
             inputs = inputs.to(DEVICE)
             targets = targets.to(DEVICE)
@@ -81,25 +123,26 @@ def perform_inference(model, test_loader):
             all_preds.extend(preds.cpu().numpy())
             all_trues.extend(targets.cpu().numpy())
     print("Inference completed on test dataset.")
-    # print stats
+    # Round values for printing
     all_trues = [round(val, 3) for val in all_trues]
     all_preds = [round(val, 3) for val in all_preds]
     print(f"True values: {all_trues[:5]} ...")
     print(f"Predicted values: {all_preds[:5]} ...")
-    # print mse, r1, mae
-    mse = torch.nn.functional.mse_loss(torch.tensor(all_trues), torch.tensor(all_preds)).item()
-    r1 = torch.nn.functional.l1_loss(torch.tensor(all_trues), torch.tensor(all_preds)).item()
-    mae = torch.nn.functional.l1_loss(torch.tensor(all_trues), torch.tensor(all_preds)).item()
-    print(f"MSE: {mse:.3f}, R1: {r1:.3f}, MAE: {mae:.3f}")
-    return all_trues, all_preds
+    # Compute metrics
+    mse = np.mean((np.array(all_trues) - np.array(all_preds)) ** 2)
+    mae = np.mean(np.abs(np.array(all_trues) - np.array(all_preds)))
+    print(f"MSE: {mse:.3f}, MAE: {mae:.3f}")
 
-def plot_true_vs_predicted(true_values, predicted_values):
-    """
-    Plot a scatter plot of true vs. predicted BG values.
+    # Save results
+    if not os.path.exists(PLOT_DIR):
+        os.makedirs(PLOT_DIR)
 
-    :param true_values: List or array of true BG values
-    :param predicted_values: List or array of predicted BG values
-    """
+    with open(os.path.join(PLOT_DIR, f'MAE_{mae:.4f}_MSE_{mse:.4f}.pkl'), 'wb') as f:
+        pickle.dump({'true_bandgaps': all_trues, 'predicted_bandgaps': all_preds}, f)
+
+    return all_trues, all_preds, mae, mse
+
+def plot_true_vs_predicted(true_values, predicted_values, mae, mse):
     sns.set_theme(style='whitegrid')
     plt.figure(figsize=(10, 8))
     sns.scatterplot(x=true_values, y=predicted_values, alpha=0.6, edgecolor=None)
@@ -112,68 +155,52 @@ def plot_true_vs_predicted(true_values, predicted_values):
     plt.title('True vs. Predicted Bandgap Values', fontsize=16)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('true_vs_predicted_bandgap.png')  # Save the plot as a PNG file
-    plt.close()  # Close the figure to free memory
-    print("Plot displayed successfully.")
+    plt.savefig(os.path.join(PLOT_DIR, f'MAE_{mae:.4f}_MSE_{mse:.4f}.png'))  # Save the plot as a PNG file
+    plt.close()
+    print("Plot saved successfully.")
 
 def main():
     # Load the test dataset
     test_df = load_test_data(TEST_DATA_PATH)
 
-    # Initialize the model configuration from TrainDefaults, then update with the config file using omegaconf
-    config_dict = parse_config(TrainDefaults)
-    # config_dict_yaml = OmegaConf.to_yaml(config_dict)
-    with open(CONFIG_PATH, 'r') as f:
-        config_dict.update(yaml.safe_load(f))
+    # Load the checkpoint
+    checkpoint = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
 
-    print(f"Model configuration: {config_dict}")
+    # Extract model_args and configuration from the checkpoint
+    if 'model_args' in checkpoint:
+        model_args = checkpoint['model_args']
+    else:
+        raise KeyError("Checkpoint does not contain 'model_args' key.")
 
-    with gzip.open(DATASET, 'rb') as f:
-        df = pickle.load(f)
-    # Efficiently calculate the maximum token length using pandas
-    # max_token_length = df['CIFs_tokenized'].str.len().max()
-    max_token_length = 6529
+    if 'config' in checkpoint:
+        saved_config = checkpoint['config']
+        FT_method = saved_config.get('finetune_method')
+    else:
+        raise KeyError("Checkpoint does not contain 'config' key.")
 
-    model_args = dict(
-        n_layer=config_dict.n_layer,
-        n_head=config_dict.n_head,
-        n_embd=config_dict.n_embd,
-        block_size=config_dict.block_size,
-        bias=config_dict.bias,
-        vocab_size=371,
-        dropout=config_dict.dropout,
-        max_token_length=max_token_length
-    )
-    config = GPTConfig(**model_args)
+    print(f"Model configuration: {model_args}")
 
     # Instantiate the tokenizer and get the <unk> token ID
     tokenizer = CIFTokenizer()
     unk_token_id = tokenizer.token_to_id["<unk>"]
 
-    with gzip.open(DATASET, 'rb') as f:
-        df = pickle.load(f)
-    # Efficiently calculate the maximum token length using pandas
-    # max_token_length = df['CIFs_tokenized'].str.len().max()
-    max_token_length = 6529
+    # Determine max_token_length
+    max_token_length = model_args.get('max_token_length', 6529)
 
     # Initialize the Dataset and DataLoader
     test_dataset = CIFRegressionDataset(test_df, max_length=max_token_length, unk_token_id=unk_token_id)
-    test_loader = DataLoader(test_dataset, batch_size=config_dict.batch_size, shuffle=False)
-    print(f"Test DataLoader created with batch size {config_dict.batch_size}.")
-
-    # Determine vocab_size from the dataset
-    all_tokens = set(token for tokens in test_df['CIFs_tokenized'] for token in tokens)
-    config.vocab_size = max(len(all_tokens), 371)  # Ensure vocab_size is at least 371
-    print(f"Vocabulary size determined: {config.vocab_size} tokens.")
+    batch_size = saved_config.get('batch_size', 1)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    print(f"Test DataLoader created with batch size {batch_size}.")
 
     # Initialize the model and load trained weights
-    model = initialize_model(CHECKPOINT_PATH, config)
+    model = initialize_model(CHECKPOINT_PATH)
 
     # Perform inference
-    true_vals, pred_vals = perform_inference(model, test_loader)
+    true_vals, pred_vals, mae, mse = perform_inference(model, test_loader)
 
     # Plot the results
-    plot_true_vs_predicted(true_vals, pred_vals)
+    plot_true_vs_predicted(true_vals, pred_vals, mae, mse)
 
 def run_inference():
     main()

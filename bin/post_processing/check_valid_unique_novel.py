@@ -7,7 +7,7 @@ import re
 from pymatgen.core import Composition, Structure
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from crystallm import extract_data_formula, is_valid
-from postprocess import postprocess
+from bin.post_processing.postprocess import postprocess
 from tqdm import tqdm
 
 import warnings

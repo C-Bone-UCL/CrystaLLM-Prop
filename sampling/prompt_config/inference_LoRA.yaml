@@ -1,0 +1,6 @@
+out_dir: "model_ckpts/finetuned_models_excl_0BG/BG_LoRA"  # the path to the directory containing the trained model
+device: "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
+dtype: "bfloat16"  # 'float32' or 'bfloat16' or 'float16'
+compile: False  # use PyTorch 2.0 to compile the model to be faster
+pkl_file: "CIF_BG_proj/BG_cifs_process_steps/BG_large_test_excl_0BG.pkl.gz"
+plot_dir: "inference_plots/BG_LoRA_excl_0BG/"

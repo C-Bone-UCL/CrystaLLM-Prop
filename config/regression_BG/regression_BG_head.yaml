@@ -9,15 +9,15 @@ adaptation: "regression"  # the type of adaptation to perform
 # evaluation frequency
 always_save_checkpoint: False
 validate: True
-eval_interval: 2
-eval_iters_train: 2
-eval_iters_val: 2
+eval_interval: 4
+eval_iters_train: 4
+eval_iters_val: 4
 log_interval: 2  # how often to print to the console (1 = every iteration)
 sanity_check: False  # if True, prints resizing of tensor details
 
 # batch and block sizes
-gradient_accumulation_steps: 2
-batch_size: 1
+gradient_accumulation_steps: 1
+batch_size: 4
 block_size: 2048  # context of up to `block_size` previous characters
 
 # architecture
@@ -32,23 +32,23 @@ tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashbo
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
 
 #wandb
-wandb_log: False # disabled by default
+wandb_log: True # disabled by default
 wandb_project: 'crystallm_regr_BG_tests'
 wandb_run_name: 'BG_head'
 
 # learning rate and optimizer
 learning_rate: 1e-4
 decay_lr: True
-lr_decay_iters: 3  # make equal to max_iters usually
+lr_decay_iters: 10  # make equal to max_iters usually
 min_lr: 1e-5  # learning_rate / 10 usually
 beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
 # training iterations
-max_iters: 3
+max_iters: 50
 warmup_iters: 100  # not super necessary potentially
 
 hp_search: true
-n_trials_hp_search: 5
+n_trials_hp_search: 50
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only

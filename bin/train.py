@@ -75,6 +75,7 @@ if __name__ == "__main__":
             output_dir=output_directory,
             project_name=f'{C.tracker_project}',
             country_iso_code="GBR",  # Replace with your country code
+            log_level="error",
         )
         tracker.stop()
         tracker.start()
@@ -99,10 +100,10 @@ if __name__ == "__main__":
         # Create the Optuna study
         study = optuna.create_study(
             direction="minimize",
-            study_name=f"hyperparameter_search_{C.adaptation}_{C.finetune_method}",
+            study_name=f"hp_search_{C.adaptation}_{C.finetune_method}",
             load_if_exists=True,
-            storage=f"sqlite:///./hp_search/{C.adaptation}_{C.finetune_method}_test.db",
-            pruner=optuna.pruners.MedianPruner(),
+            storage=f"sqlite:///./hp_search/{C.adaptation}_{C.finetune_method}.db",
+            pruner=optuna.pruners.PatientPruner(optuna.pruners.MedianPruner(), patience=3),
         )
 
         # Run the hyperparameter optimization
@@ -125,6 +126,17 @@ if __name__ == "__main__":
         ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[C.dtype]
         ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
+        if C.wandb_log:
+            import wandb
+            # Set up W&B run for this trial
+            wandb.login(key='5f5e743f253c050dda2db65cbf8864cd444f40b9')
+            wandb_run = wandb.init(
+                project=C.wandb_project,
+                name=f"{C.wandb_run_name}",
+                config=dict(C),
+                reinit=True  # Ensure a new run is created for each trial
+            )
+            
         # Load the dataset
         if not C.dataset:
             raise ValueError("The 'dataset' option is required and cannot be empty")

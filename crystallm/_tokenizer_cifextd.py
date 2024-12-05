@@ -88,8 +88,6 @@ class CIFTokenizer_extd:
         #  for decoding convenience
         for sg in space_groups_sg:
             self._id_to_token[self.token_to_id[sg]] = sg.replace("_sg", "")
-        
-        print(self._token_to_id)
 
     @staticmethod
     def atoms():

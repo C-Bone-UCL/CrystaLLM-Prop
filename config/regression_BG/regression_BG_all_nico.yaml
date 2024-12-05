@@ -1,0 +1,53 @@
+# directories and checkpoints
+out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
+dataset: "CIF_BG_proj/table_MP_full_tokens.pkl.gz"
+init_from: "resume"
+finetune_method: "finetune_all"
+ckpt_out_dir: "model_ckpts/regression_models/BG_all"  # the path to the directory to save the checkpoints
+adaptation: "regression"  # the type of adaptation to perform
+
+# evaluation frequency
+always_save_checkpoint: false
+validate: true
+eval_interval: 50
+eval_iters_train: 50
+eval_iters_val: 50
+log_interval: 50  # how often to print to the console (1 = every iteration)
+sanity_check: true  # if True, prints resizing of tensor details
+
+# batch and block sizes
+gradient_accumulation_steps: 16
+batch_size: 2
+block_size: 2048  # context of up to `block_size` previous characters
+
+# architecture
+n_layer: 16
+n_head: 16
+n_embd: 1024
+dropout: 0.1
+
+# trackers
+codecarbon: true  # if True, log emissions to CodeCarbon
+tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
+metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
+
+#wandb
+wandb_log: true # disabled by default
+wandb_project: 'crystallm_regression_BG'
+wandb_run_name: 'regression_BG_all_nico'
+
+# learning rate and optimizer
+learning_rate: 5e-5
+decay_lr: true
+lr_decay_iters: 2500  # make equal to max_iters usually
+min_lr: 5e-6  # learning_rate / 10 usually
+beta2: 0.995 # make a bit bigger because number of tokens per iter is small
+
+# training iterations
+max_iters: 2500
+warmup_iters: 100  # not super necessary potentially
+
+# on macbook also add
+# device: 'cpu'  # run on cpu only
+# compile: False # do not torch compile the model
+weight_decay: 0.1

@@ -1,14 +1,15 @@
 # directories and checkpoints
-out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
+out_dir: "model_ckpts/pretrained_models/small_model_untouched" # path to model ckpt to train on
 dataset: "CIF_BG_proj/BG_large_tokens"
 init_from: "resume"
 finetune_method : "finetune_all"
 ckpt_out_dir: "model_ckpts/finetuned_models/BG_all_test"  # the path to the directory to save the checkpoints
+adaptation: "cifextd"
 
 # evaluation frequency
 always_save_checkpoint: False
 validate: True
-eval_interval: 5
+eval_interval: 1
 eval_iters_train: 2
 eval_iters_val: 2
 log_interval: 2  # how often to print to the console (1 = every iteration)
@@ -20,8 +21,8 @@ batch_size: 4
 block_size: 1024  # context of up to `block_size` previous characters
 
 # architecture
-n_layer: 12
-n_head: 12
+n_layer: 16
+n_head: 16
 n_embd: 1024
 dropout: 0.1
 
@@ -31,20 +32,20 @@ tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashbo
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
 
 #wandb
-wandb_log: True # disabled by default
+wandb_log: False # disabled by default
 wandb_project: 'crystallm_CIF_BG_tests'
 wandb_run_name: 'BG_large_all'
 
 # learning rate and optimizer
 learning_rate: 1e-4
 decay_lr: True
-lr_decay_iters: 50  # make equal to max_iters usually
+lr_decay_iters: 2  # make equal to max_iters usually
 min_lr: 1e-5  # learning_rate / 10 usually
 beta2: 0.99  # make a bit bigger because number of tokens per iter is small
 
 # training iterations
-max_iters: 4
-warmup_iters: 100  # not super necessary potentially
+max_iters: 2
+warmup_iters: 1  # not super necessary potentially
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only

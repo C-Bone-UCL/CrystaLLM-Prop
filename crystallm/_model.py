@@ -233,21 +233,33 @@ class GPT(nn.Module):
 
     def resize_token_embeddings(self, new_vocab_size: int):
         """
-        Resizes the token embeddings matrix of the model.
+        Resizes the token embeddings matrix of the model and adjusts lm_head accordingly.
         """
-        if new_vocab_size == self.config.vocab_size:
+        old_vocab_size = self.config.vocab_size
+        if new_vocab_size == old_vocab_size:
             return
-        if new_vocab_size < self.config.vocab_size:
+        elif new_vocab_size < old_vocab_size:
             raise ValueError("Cannot resize token embeddings to a smaller size without tensor issues.")
         else:
-            old_vocab_size = self.config.vocab_size
+            # Update the config
             self.config.vocab_size = new_vocab_size
-            old_wte = self.transformer.wte.weight.data
+
+            # Resize transformer.wte (token embeddings)
+            old_embedding_weight = self.transformer.wte.weight.data.clone()
             self.transformer.wte = nn.Embedding(new_vocab_size, self.config.n_embd)
-            self.transformer.wte.weight.data[:old_vocab_size, :] = old_wte
-            new_tokens = new_vocab_size - old_vocab_size
-            if new_tokens > 0:
-                nn.init.normal_(self.transformer.wte.weight.data[old_vocab_size:, :], mean=0.0, std=0.02)
+            with torch.no_grad():
+                self.transformer.wte.weight[:old_vocab_size, :] = old_embedding_weight
+                nn.init.normal_(self.transformer.wte.weight[old_vocab_size:, :], mean=0.0, std=0.02)
+
+            # Resize lm_head (output layer)
+            old_lm_head_weight = self.lm_head.weight.data.clone()
+            self.lm_head = nn.Linear(self.config.n_embd, new_vocab_size, bias=False)
+            with torch.no_grad():
+                self.lm_head.weight[:old_vocab_size, :] = old_lm_head_weight
+                nn.init.normal_(self.lm_head.weight[old_vocab_size:, :], mean=0.0, std=0.02)
+
+            # Re-establish weight tying
+            self.lm_head.weight = self.transformer.wte.weight
 
     def replace_linear_with_lora(self, rank: int = 16, alpha: int = 16):
         """
@@ -341,10 +353,9 @@ class GPT(nn.Module):
                     elif pn.endswith('weight') and isinstance(m, blacklist_weight_modules):
                         no_decay.add(fpn)
 
-        if self.config.finetune_method != 'LoRA':
-            decay.discard('lm_head.weight')
-            no_decay.add('lm_head.weight')
-            print("removed lm_head.weight from decay set to not have weight decay applied")  
+        decay.discard('lm_head.weight')
+        if self.config.sanity_check:
+            print("lm_head.weight not decayed for weight tying")
 
         # Validate that all parameters are assigned
         param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
@@ -358,6 +369,16 @@ class GPT(nn.Module):
             {"params": [param_dict[pn] for pn in sorted(decay)], "weight_decay": weight_decay},
             {"params": [param_dict[pn] for pn in sorted(no_decay)], "weight_decay": 0.0},
         ]
+
+        # print the decay and no_decay parameters for sanity check
+        if self.config.sanity_check:
+            print("Decay:")
+            for pn in sorted(decay):
+                print(pn)
+            print("\nNo Decay:")
+            for pn in sorted(no_decay):
+                print(pn)
+
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas)
         return optimizer
 
@@ -432,6 +453,7 @@ class GPT_regression(nn.Module):
         print(f"UNK token ID: {config.unk_token_id}, using it for AttentionPooling")
         self.attention_pooling = AttentionPooling(config.n_embd, unk_token_id=config.unk_token_id)
 
+        print(f"Using latent dimension of {config.latent_dim} for regression head")
         self.lm_head = nn.Sequential(
             torch.nn.Linear(config.n_embd, config.latent_dim),
             torch.nn.ReLU(), # ReLU activation function
@@ -502,23 +524,31 @@ class GPT_regression(nn.Module):
 
     def resize_token_embeddings(self, new_vocab_size: int):
         """
-        Resizes the token embeddings matrix of the model.
+        Resizes the token embeddings matrix of the model and adjusts lm_head accordingly.
         """
-        if new_vocab_size == self.config.vocab_size:
+        old_vocab_size = self.config.vocab_size
+        if new_vocab_size == old_vocab_size:
             return
-        if new_vocab_size < self.config.vocab_size:
+        elif new_vocab_size < old_vocab_size:
             raise ValueError("Cannot resize token embeddings to a smaller size without tensor issues.")
         else:
-            old_vocab_size = self.config.vocab_size
+            # Update the config
             self.config.vocab_size = new_vocab_size
-            old_wte = self.transformer.wte.weight.data
-            self.transformer.wte = nn.Embedding(new_vocab_size, self.config.n_embd)
-            self.transformer.wte.weight.data[:old_vocab_size, :] = old_wte
-            new_tokens = new_vocab_size - old_vocab_size
-            if new_tokens > 0:
-                nn.init.normal_(self.transformer.wte.weight.data[old_vocab_size:, :], mean=0.0, std=0.02)
 
-    
+            # Resize transformer.wte (token embeddings)
+            old_embedding_weight = self.transformer.wte.weight.data.clone()
+            self.transformer.wte = nn.Embedding(new_vocab_size, self.config.n_embd)
+            with torch.no_grad():
+                self.transformer.wte.weight[:old_vocab_size, :] = old_embedding_weight
+                nn.init.normal_(self.transformer.wte.weight[old_vocab_size:, :], mean=0.0, std=0.02)
+
+            # Resize lm_head (output layer)
+            old_lm_head_weight = self.lm_head.weight.data.clone()
+            self.lm_head = nn.Linear(self.config.n_embd, new_vocab_size, bias=False)
+            with torch.no_grad():
+                self.lm_head.weight[:old_vocab_size, :] = old_lm_head_weight
+                nn.init.normal_(self.lm_head.weight[old_vocab_size:, :], mean=0.0, std=0.02)
+
     def replace_linear_with_lora(self, rank: int = 16, alpha: int = 16):
         """
         Replace all nn.Linear layers in the transformer with LinearWithLoRA.
@@ -550,6 +580,10 @@ class GPT_regression(nn.Module):
             
             # Crop the position embeddings if max_token_length is smaller
             self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:max_token_length])
+            for block in self.transformer.h:
+                # Check if bias exists (when Flash Attention is not available)
+                if hasattr(block.attn, 'bias'):
+                    block.attn.bias = block.attn.bias[:,:,:max_token_length,:max_token_length]
         
         # Update the block size in the model configuration
         self.config.max_token_length = max_token_length

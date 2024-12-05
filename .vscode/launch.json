@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug cifextd_inference.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/cifextd_inference.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["--config", "sampling/prompt_config/BG_gen_ft_head.yaml"],
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "type": "promptString",
+            "id": "programPath",
+            "description": "Enter the relative path to the Python file to launch"
+        }
+    ]
+}
