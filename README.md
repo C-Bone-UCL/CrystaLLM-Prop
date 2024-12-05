@@ -1,3 +1,190 @@
+CrystaLLM-Prop
+==============
+CrystaLLM-Prop is a project based on CrystaLLM, for which the repository can be found 
+at [CrystaLLM](https://github.com/lantunes/CrystaLLM). 
+It has not been edited for easy use just yet, but the code can be found in the repostiory
+And a general guide on how to use can be found below
+
+## Getting Started
+
+Read CrystaLLM's Read-me below to setup your environment and download all the requirments, 
+which have been updated to fit this project
+
+## Datasets
+
+### Next Token Generation
+
+To run the next token generation 'cifextd' version of the model, 
+which predicts bandgap from a CIF file input using nect token generation:
+A dataset can be generated following the [Tokenizing BG notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_BG.ipynb)
+Outputs should show CIF files with an additional line at the end of the format 'Bandgap eV 0.00' for ex
+
+### Regression head
+
+To run the regression adaptation of the modelm
+Which predicts bandgap with numerical values as a regression task:
+A dataset can be generated following the [Tokenizing table notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_table.ipynb)
+Outputs should be a table whith the following populated columns:
+
+| 'Database' | 'Reduced Formula' | 'CIF' | 'Bandagap (eV)' | 'CIFs_tokenized' |
+
+## Config Files
+
+<details>
+  <summary>Expand for supported configuration options and their default values</summary>
+
+  ```python
+  # directories and checkpoints
+  out_dir: "model_ckpts/pretrained_models/small_model_untouched" # path to model ckpt to train on
+  dataset: "CIF_BG_proj/table_MP_500_tokens.pkl.gz"
+  init_from: "resume"
+  finetune_method : "finetune_all"
+  ckpt_out_dir: "model_ckpts/regression_models/BG_all_test"  # the path to the directory to save the checkpoints
+  adaptation: "regression"  # the type of adaptation to perform
+  
+  # evaluation frequency
+  always_save_checkpoint: False
+  validate: True
+  eval_interval: 5
+  eval_iters_train: 2
+  eval_iters_val: 2
+  log_interval: 2  # how often to print to the console (1 = every iteration)
+  sanity_check: True  # if True, prints resizing of tensor details
+  
+  # batch and block sizes
+  gradient_accumulation_steps: 4
+  batch_size: 1
+  block_size: 1024  # context of up to `block_size` previous characters
+  
+  # architecture
+  n_layer: 16
+  n_head: 16
+  n_embd: 1024
+  dropout: 0.1
+  
+  # trackers
+  codecarbon: False  # if True, log emissions to CodeCarbon
+  tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
+  metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
+  
+  #wandb
+  wandb_log: False # disabled by default
+  wandb_project: 'crystallm_CIF_BG_tests'
+  wandb_run_name: 'BG_large_all'
+  
+  # learning rate and optimizer
+  learning_rate: 1e-4
+  decay_lr: True
+  lr_decay_iters: 50  # make equal to max_iters usually
+  min_lr: 1e-5  # learning_rate / 10 usually
+  beta2: 0.99  # make a bit bigger because number of tokens per iter is small
+  
+  # training iterations
+  max_iters: 4
+  warmup_iters: 100  # not super necessary potentially
+  
+  # on macbook also add
+  # device: 'cpu'  # run on cpu only
+  # compile: False # do not torch compile the model
+  ```
+</details>
+
+<details>
+  <summary>Expand for supported configuration options and their default values</summary>
+
+  ```python
+  # directories and checkpoints
+  out_dir: "model_ckpts/pretrained_models/small_model_untouched" # path to model ckpt to train on
+  dataset: "CIF_BG_proj/BG_large_tokens"
+  init_from: "resume"
+  finetune_method : "finetune_all"
+  ckpt_out_dir: "model_ckpts/finetuned_models/BG_all_test"  # the path to the directory to save the checkpoints
+  adaptation: "cifextd"
+  
+  # evaluation frequency
+  always_save_checkpoint: False
+  validate: True
+  eval_interval: 1
+  eval_iters_train: 2
+  eval_iters_val: 2
+  log_interval: 2  # how often to print to the console (1 = every iteration)
+  sanity_check: True  # if True, prints resizing of tensor details
+  
+  # batch and block sizes
+  gradient_accumulation_steps: 4
+  batch_size: 4
+  block_size: 1024  # context of up to `block_size` previous characters
+  
+  # architecture
+  n_layer: 16
+  n_head: 16
+  n_embd: 1024
+  dropout: 0.1
+  
+  # trackers
+  codecarbon: False  # if True, log emissions to CodeCarbon
+  tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
+  metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
+  
+  #wandb
+  wandb_log: False # disabled by default
+  wandb_project: 'crystallm_CIF_BG_tests'
+  wandb_run_name: 'BG_large_all'
+  
+  # learning rate and optimizer
+  learning_rate: 1e-4
+  decay_lr: True
+  lr_decay_iters: 2  # make equal to max_iters usually
+  min_lr: 1e-5  # learning_rate / 10 usually
+  beta2: 0.99  # make a bit bigger because number of tokens per iter is small
+  
+  # training iterations
+  max_iters: 2
+  warmup_iters: 1  # not super necessary potentially
+  
+  # on macbook also add
+  # device: 'cpu'  # run on cpu only
+  # compile: False # do not torch compile the model
+  ```
+</details>
+
+More configurations can be found at [Possible Configs](https://github.com/C-Bone-UCL/CrystaLLM-Prop/tree/main/config)
+
+## Training the model
+
+### Next Token Generation
+
+```shell
+python bin/train.py --config=config/cif_extd_BG/finetune_all_BG.yaml
+```
+
+### Regression
+
+```shell
+python bin/train.py --config=config/cif_extd_BG/regression_BG_all.yaml
+```
+
+## Inference tests
+
+Inference tests on the trained models can be ran following the notebook at [Inference Tests](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/inference_tests.ipynb)
+
+### Next Token Generation
+
+An example sample config can be found in the sample [Prompt Configs](https://github.com/C-Bone-UCL/CrystaLLM-Prop/tree/main/sampling/prompt_config)
+```shell
+python bin/cifextd_inference.py --config sampling/prompt_config/inference_LoRA.yaml
+```
+
+### Regression
+
+For this one you can change configs in the python scrip itself: [inference Scirpt](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/bin/regr_inference.py)
+```shell
+python bin/regr_inference.py
+```
+
+For any questions on how to use, contact cyprien.bone.24@ucl.ac.uk
+
+
 CrystaLLM
 ==============
 
