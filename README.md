@@ -3,7 +3,7 @@ CrystaLLM-Prop
 CrystaLLM-Prop is a project based on CrystaLLM, for which the repository can be found 
 at [CrystaLLM](https://github.com/lantunes/CrystaLLM). 
 It has not been edited for easy use just yet, but the code can be found in the repostiory
-And a general guide on how to use can be found below
+And a general guide on how to use can be found below:
 
 <img src="Scheme.png" width="50%"/>
 
@@ -14,18 +14,19 @@ which have been updated to fit this project
 
 ## Datasets
 
+Before starting, datasets need to be generated, which can be done following [MP2CIF-Prop](https://github.com/C-Bone-UCL/MP2CIF-Prop) 
+
 ### Next Token Generation
 
 To run the next token generation 'cifextd' version of the model, 
-which predicts bandgap from a CIF file input using nect token generation:
-A dataset can be generated following the [Tokenizing BG notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_BG.ipynb)
-Outputs should show CIF files with an additional line at the end of the format 'Bandgap eV 0.00' for ex
+which predicts bandgap from a CIF file input using next token generation:
+A dataset can be generated following the [Tokenizing BG notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_BG.ipynb). 
+Outputs should show CIF files with an additional line at the end of the format 'Bandgap eV 0.00' for ex.
 
 ### Regression head
 
-To run the regression adaptation of the modelm
-Which predicts bandgap with numerical values as a regression task:
-A dataset can be generated following the [Tokenizing table notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_table.ipynb)
+To run the regression adaptation of the model - predicts bandgap with numerical values as a regression task:
+A dataset can be generated following the [Tokenizing table notebook](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/tokenizing_table.ipynb). 
 Outputs should be a table whith the following populated columns:
 
 | 'Database' | 'Reduced Formula' | 'CIF' | 'Bandagap (eV)' | 'CIFs_tokenized' |
@@ -168,11 +169,12 @@ python bin/train.py --config=config/cif_extd_BG/regression_BG_all.yaml
 
 ## Inference tests
 
-Inference tests on the trained models can be ran following the notebook at [Inference Tests](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/inference_tests.ipynb)
+Inference tests on the trained models can be ran following the notebook at [Inference Tests](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/notebooks/inference_tests.ipynb).
 
 ### Next Token Generation
 
-An example sample config can be found in the sample [Prompt Configs](https://github.com/C-Bone-UCL/CrystaLLM-Prop/tree/main/sampling/prompt_config)
+An example sample config can be found in the sample [Prompt Configs](https://github.com/C-Bone-UCL/CrystaLLM-Prop/tree/main/sampling/prompt_config).
+
 ```shell
 python bin/cifextd_inference.py --config sampling/prompt_config/inference_LoRA.yaml
 ```
@@ -180,11 +182,13 @@ python bin/cifextd_inference.py --config sampling/prompt_config/inference_LoRA.y
 ### Regression
 
 For this one you can change configs in the python script itself: [Inference script for regression](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/bin/regr_inference.py)
+
 ```shell
 python bin/regr_inference.py
 ```
 
-For any questions on how to use, contact cyprien.bone.24@ucl.ac.uk
+## Queries
+For any questions on how to use, contact cyprien.bone.24@ucl.ac.uk or raise a GitHub issue
 
 
 CrystaLLM
