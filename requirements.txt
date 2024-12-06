@@ -12,3 +12,5 @@ loralib==0.1.2
 wandb==0.12.4
 codecarbon==2.7.1
 psutil==6.1.0
+optuna==4.1.0
+optuna-dashboard==0.17.0
