@@ -179,7 +179,7 @@ python bin/cifextd_inference.py --config sampling/prompt_config/inference_LoRA.y
 
 ### Regression
 
-For this one you can change configs in the python scrip itself: [inference Scirpt](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/bin/regr_inference.py)
+For this one you can change configs in the python script itself: [Inference script for regression](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/bin/regr_inference.py)
 ```shell
 python bin/regr_inference.py
 ```
