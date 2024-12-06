@@ -5,7 +5,7 @@ at [CrystaLLM](https://github.com/lantunes/CrystaLLM).
 It has not been edited for easy use just yet, but the code can be found in the repostiory
 And a general guide on how to use can be found below
 
-[Scheme](https://github.com/C-Bone-UCL/CrystaLLM-Prop/blob/main/Scheme.svg)
+<img src="Scheme.svg" width="50%"/>
 
 ## Getting Started
 
