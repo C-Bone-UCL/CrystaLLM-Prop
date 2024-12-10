@@ -135,7 +135,7 @@ class Block(nn.Module):
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
-
+    
 # LoRA Implementation, (CB: added this)
 class LoRALayer(nn.Module):
     def __init__(self, in_dim, out_dim, rank, alpha):
@@ -148,20 +148,37 @@ class LoRALayer(nn.Module):
     def forward(self, x):
         return self.alpha * (x @ self.A @ self.B)
 
-# model.py
 
 class LinearWithLoRA(nn.Module):
     def __init__(self, old_linear: nn.Linear, rank: int, alpha: int):
         super().__init__()
-        # Create a new linear layer and copy weights and bias
-        self.linear = nn.Linear(old_linear.in_features, old_linear.out_features, bias=(old_linear.bias is not None))
-        self.linear.weight = old_linear.weight
+        # Copy the original weights and bias
+        self.weight = nn.Parameter(old_linear.weight.data.clone())
         if old_linear.bias is not None:
-            self.linear.bias = old_linear.bias
-        self.lora = LoRALayer(old_linear.in_features, old_linear.out_features, rank, alpha)
+            self.bias = nn.Parameter(old_linear.bias.data.clone())
+        else:
+            self.bias = None
+
+        # Create a submodule 'lora' to hold LoRA parameters
+        # This ensures that in the state dict, parameters will appear as lora.A and lora.B
+        in_dim, out_dim = old_linear.in_features, old_linear.out_features
+        std_dev = 1 / math.sqrt(rank)
+
+        self.lora = nn.Module()
+        self.lora.A = nn.Parameter(torch.randn(in_dim, rank) * std_dev)
+        self.lora.B = nn.Parameter(torch.zeros(rank, out_dim))
+
+        self.alpha = alpha
 
     def forward(self, x):
-        return self.linear(x) + self.lora(x)
+        # Regular linear operation
+        out = x @ self.weight.T
+        if self.bias is not None:
+            out += self.bias
+
+        # LoRA adjustment
+        lora_out = self.alpha * (x @ self.lora.A @ self.lora.B)
+        return out + lora_out
     
 class AttentionPooling(nn.Module):
     def __init__(self, n_embd, unk_token_id):
@@ -260,20 +277,17 @@ class GPT(nn.Module):
 
             # Re-establish weight tying
             self.lm_head.weight = self.transformer.wte.weight
-
+    
     def replace_linear_with_lora(self, rank: int = 16, alpha: int = 16):
-        """
-        Replace all nn.Linear layers in the transformer with LinearWithLoRA.
-        """
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 parent_name = '.'.join(name.split('.')[:-1])
                 module_name = name.split('.')[-1]
                 parent_module = self.get_submodule(parent_name)
                 old_linear = getattr(parent_module, module_name)
+                # Use the revised LinearWithLoRA that doesn't wrap nn.Linear inside
                 lora_linear = LinearWithLoRA(old_linear, rank, alpha)
                 setattr(parent_module, module_name, lora_linear)
-
     def get_submodule(self, target_name):
         """
         Recursively find the submodule given a dotted path.
@@ -550,17 +564,16 @@ class GPT_regression(nn.Module):
                 nn.init.normal_(self.lm_head.weight[old_vocab_size:, :], mean=0.0, std=0.02)
 
     def replace_linear_with_lora(self, rank: int = 16, alpha: int = 16):
-        """
-        Replace all nn.Linear layers in the transformer with LinearWithLoRA.
-        """
         for name, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 parent_name = '.'.join(name.split('.')[:-1])
                 module_name = name.split('.')[-1]
                 parent_module = self.get_submodule(parent_name)
                 old_linear = getattr(parent_module, module_name)
+                # Use the revised LinearWithLoRA that doesn't wrap nn.Linear inside
                 lora_linear = LinearWithLoRA(old_linear, rank, alpha)
                 setattr(parent_module, module_name, lora_linear)
+
 
     def resize_block(self, max_token_length: int):
         # Update the block size in the model configuration

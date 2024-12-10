@@ -183,3 +183,5 @@ cif.txt
 model_ckpts/
 true_vs_predicted_bandgap.png
 CIF_BG_proj/
+inference_plots/
+hp_search/

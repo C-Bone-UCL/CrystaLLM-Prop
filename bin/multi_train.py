@@ -22,7 +22,7 @@ config_files = [
     "config/cif_extd_BG/finetune_head_BG_nico.yaml",
     "config/regression_BG/regression_BG_all_nico.yaml",
     "config/regression_BG/regression_BG_head_nico.yaml",
-    "config/regression_BG/regression_BG_LoRA_nico.yaml",
+    "config/regression_BG/regression_BG_LoRA_myriad.yaml",
     # "config/finetune_all_BG_nico.yaml",
 ]
 

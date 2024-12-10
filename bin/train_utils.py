@@ -283,6 +283,13 @@ def load_data_table(C):
         pickle.dump(test_df, f)
     print(f"Saved test dataset to {test_out_path}\n")
 
+    # Save the test dataset for future use
+    val_out_dir = os.path.dirname(C.dataset)
+    val_out_path = os.path.join(val_out_dir, "val_dataset.pkl.gz")
+    with gzip.open(val_out_path, 'wb') as f:
+        pickle.dump(val_df, f)
+    print(f"Saved val dataset to {val_out_path}\n")
+
     # Get vocab size from tokenizer
     vocab_size = len(tokenizer._tokens_with_unk)
 

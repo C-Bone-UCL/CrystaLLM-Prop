@@ -2,57 +2,55 @@
 out_dir: "model_ckpts/pretrained_models/large_model_untouched" # path to model ckpt to train on
 dataset: "CIF_BG_proj/table_MP_full_tokens.pkl.gz"
 init_from: "resume"
-finetune_method: "LoRA"
-ckpt_out_dir: "model_ckpts/regression_models/BG_LoRA_v2"  # the path to the directory to save the checkpoints
+finetune_method: "finetune_head"
+ckpt_out_dir: "model_ckpts/regression_models/BG_head"  # the path to the directory to save the checkpoints
 adaptation: "regression"  # the type of adaptation to perform
 
 # evaluation frequency
-always_save_checkpoint: False
+always_save_checkpoint: false
 validate: true
 eval_interval: 100
 eval_iters_train: 100
 eval_iters_val: 100
 log_interval: 50  # how often to print to the console (1 = every iteration)
-sanity_check: False  # if True, prints resizing of tensor details
+sanity_check: false  # if True, prints resizing of tensor details
 
 # batch and block sizes
-gradient_accumulation_steps: 32
-batch_size: 4
+gradient_accumulation_steps: 4
+batch_size: 8
 block_size: 2048  # context of up to `block_size` previous characters
-latent_dim: 1024
 
 # architecture
 n_layer: 16
 n_head: 16
-n_embd: 1536
-dropout: 0.13
+n_embd: 1024
+dropout: 0.1
 
 # trackers
-codecarbon: True  # if True, log emissions to CodeCarbon
+codecarbon: false  # if True, log emissions to CodeCarbon
 tracker_project: "crystallm"  # the name of the project in the CodeCarbon dashboard
 metrics_dir: "comp_metrics"  # the path to the folder where the metrics will be stored
 
 #wandb
-wandb_log: True # disabled by default
-wandb_project: 'crystallm_regression_BG_myriad'
-wandb_run_name: 'regression_BG_LoRA_myriad'
+wandb_log: false # disabled by default
+wandb_project: 'regression_BG_myriad_test'
+wandb_run_name: 'regression_BG_head_myriad_test'
 
 # learning rate and optimizer
-learning_rate: 1.13e-4
+learning_rate: 1e-3
 decay_lr: true
-lr_decay_iters: 1  # make equal to max_iters usually
-min_lr: 1.13e-5  # learning_rate / 10 usually
-beta2: 0.941 # make a bit bigger because number of tokens per iter is small
-beta1: 0.881
-grad_clip: 6.85
+lr_decay_iters: 1500  # make equal to max_iters usually
+min_lr: 1e-4  # learning_rate / 10 usually
+beta2: 0.995 # make a bit bigger because number of tokens per iter is small
 
 # training iterations
-max_iters: 4000
+max_iters: 1500
 warmup_iters: 100  # not super necessary potentially
 
 # on macbook also add
 # device: 'cpu'  # run on cpu only
 # compile: False # do not torch compile the model
-weight_decay: 0.05
-LoRA_rank: 4
-LoRA_alpha: 6
+weight_decay: 0.1
+
+hp_search: false
+n_trials_hp_search: 5
